@@ -19,8 +19,8 @@ llm:
 
 # Story Generation Configuration
 story:
-  # The topic or theme for the story
-  topic: "a gentle walk through a quiet forest at dusk"
+  # Topic for the story (what the story should be about)
+  topic: "floating on a calm ocean under a starry night sky"
   # Target duration in minutes (story will continue generating until this is reached)
   target_duration_minutes: 20
   # LLM model to use
