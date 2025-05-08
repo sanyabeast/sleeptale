@@ -4,8 +4,8 @@
 """
 SleepTeller - Video Composition Module
 
-This script combines the generated audio with a looping background video or image
-to create a final video file ready for playback.
+This script combines the generated voice lines with a looping background video
+and background music to create a final sleep story video ready for playback.
 """
 
 import os
@@ -13,9 +13,10 @@ import sys
 import yaml
 import argparse
 import glob
+import random
 from pathlib import Path
 import time
-from moviepy.editor import VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, CompositeAudioClip
+from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_audioclips, CompositeVideoClip, CompositeAudioClip
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -36,62 +37,51 @@ def log(message, emoji=None):
     else:
         print(message)
 
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        log("Error: No config file specified.", "❌")
-        log("Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml", "💡")
-        sys.exit(1)
-    
+def load_config():
+    """Load configuration from config.yaml file."""
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            log(f"Using config filename '{config_name}' as project name", "ℹ️")
-        
         return config
     except FileNotFoundError:
-        log(f"Error: Config file not found: {config_path}", "❌")
-        log(f"Hint: Make sure the config file exists. Example: configs/sample.yaml", "💡")
+        log("Error: config.yaml not found in the root directory", "❌")
         sys.exit(1)
     except yaml.YAMLError as e:
-        log(f"Error parsing config file: {e}", "❌")
+        log(f"Error parsing config.yaml: {e}", "❌")
         sys.exit(1)
 
 # Global variables
 CONFIG = None
 STORIES_DIR = None
-AUDIO_DIR = None
-VIDEOS_DIR = None
-PROJECT_NAME = None
+VOICE_LINES_DIR = None
+VIDEOS_OUTPUT_DIR = None
+LIB_VIDEOS_DIR = None
+LIB_MUSIC_DIR = None
 
 def update_directories():
-    """Update directory paths based on the loaded configuration."""
-    global STORIES_DIR, AUDIO_DIR, VIDEOS_DIR, PROJECT_NAME
+    """Update directory paths for input and output files."""
+    global STORIES_DIR, VOICE_LINES_DIR, VIDEOS_OUTPUT_DIR, LIB_VIDEOS_DIR, LIB_MUSIC_DIR
     
-    PROJECT_NAME = CONFIG.get('project_name', 'default')
+    # Input directories
+    STORIES_DIR = os.path.join(PROJECT_DIR, "output", "stories")
+    VOICE_LINES_DIR = os.path.join(PROJECT_DIR, "output", "voice_lines")
     
-    # Create output directory structure
-    output_dir = os.path.join(PROJECT_DIR, "output", PROJECT_NAME)
-    STORIES_DIR = os.path.join(output_dir, "stories")
-    AUDIO_DIR = os.path.join(output_dir, "audio")
-    VIDEOS_DIR = os.path.join(output_dir, "videos")
+    # Output directory
+    VIDEOS_OUTPUT_DIR = os.path.join(PROJECT_DIR, "output", "videos")
+    
+    # Library directories
+    LIB_VIDEOS_DIR = os.path.join(PROJECT_DIR, "lib", "videos")
+    LIB_MUSIC_DIR = os.path.join(PROJECT_DIR, "lib", "music")
     
     # Create directories if they don't exist
     os.makedirs(STORIES_DIR, exist_ok=True)
-    os.makedirs(AUDIO_DIR, exist_ok=True)
-    os.makedirs(VIDEOS_DIR, exist_ok=True)
+    os.makedirs(VIDEOS_OUTPUT_DIR, exist_ok=True)
     
-    log(f"Project: {PROJECT_NAME}", "📂")
     log(f"Stories directory: {STORIES_DIR}", "📝")
-    log(f"Audio directory: {AUDIO_DIR}", "🔊")
-    log(f"Videos directory: {VIDEOS_DIR}", "🎬")
+    log(f"Voice lines directory: {VOICE_LINES_DIR}", "🔊")
+    log(f"Videos output directory: {VIDEOS_OUTPUT_DIR}", "🎥")
+    log(f"Background videos directory: {LIB_VIDEOS_DIR}", "🎥")
+    log(f"Background music directory: {LIB_MUSIC_DIR}", "🌻")
 
 def ensure_dir_exists(directory):
     """Create directory if it doesn't exist."""
@@ -135,116 +125,205 @@ def resize_video(clip, target_resolution):
     
     return background
 
-def find_latest_audio():
-    """Find the most recently created audio file.
+def get_story_files():
+    """Get all story YAML files.
     
     Returns:
-        Path to the latest audio file, or None if no audio found
+        List of paths to story files
     """
-    audio_files = glob.glob(os.path.join(AUDIO_DIR, "*.mp3"))
-    
-    if not audio_files:
-        return None
-    
-    # Sort by modification time (newest first)
-    latest_audio = max(audio_files, key=os.path.getmtime)
-    return latest_audio
+    story_files = glob.glob(os.path.join(STORIES_DIR, "*.yaml"))
+    return story_files
 
-def create_video(audio_path, background_path=None, output_path=None, add_music=False, music_file=None, music_volume=0.2):
-    """Create a video by combining audio with a background video or image.
+def get_voice_lines(story_name):
+    """Get all voice line files for a specific story.
     
     Args:
-        audio_path: Path to the audio file
-        background_path: Path to the background video or image file
-        output_path: Path to save the output video
-        add_music: Whether to add background music
-        music_file: Path to the background music file
-        music_volume: Volume of the background music (0.0 to 1.0)
+        story_name: Name of the story (directory name in voice_lines)
+        
+    Returns:
+        List of paths to voice line files, sorted by number
+    """
+    voice_lines_path = os.path.join(VOICE_LINES_DIR, story_name)
+    if not os.path.exists(voice_lines_path):
+        return []
+    
+    # Get all WAV files
+    voice_files = glob.glob(os.path.join(voice_lines_path, "*.wav"))
+    
+    # Sort by filename (which should be numeric)
+    voice_files.sort(key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
+    
+    return voice_files
+
+def get_random_background_video():
+    """Get a random background video from the library.
     
     Returns:
-        Path to the created video file
+        Path to a random video file, or None if no videos found
     """
-    # Load the audio file
-    audio_clip = AudioFileClip(audio_path)
-    audio_duration = audio_clip.duration
+    video_files = glob.glob(os.path.join(LIB_VIDEOS_DIR, "*.mp4"))
+    video_files.extend(glob.glob(os.path.join(LIB_VIDEOS_DIR, "*.mov")))
+    video_files.extend(glob.glob(os.path.join(LIB_VIDEOS_DIR, "*.avi")))
     
-    log(f"Audio duration: {audio_duration:.2f} seconds", "⏱️")
-    
-    # If no background path is provided, use the one from config
-    if background_path is None:
-        background_path = CONFIG.get('video', {}).get('background_loop')
-    
-    if not background_path or not os.path.exists(background_path):
-        log(f"Background file not found: {background_path}", "❌")
-        log("Please specify a valid background file in the config or as a parameter", "💡")
+    if not video_files:
         return None
     
-    # Determine if the background is a video or an image
-    is_image = background_path.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif'))
+    return random.choice(video_files)
+
+def get_random_background_music():
+    """Get a random background music file from the library.
     
-    # Get the target resolution from config or use default
-    resolution_str = CONFIG.get('video', {}).get('resolution', '1920x1080')
-    width, height = map(int, resolution_str.split('x'))
-    target_resolution = (width, height)
+    Returns:
+        Path to a random music file, or None if no music found
+    """
+    music_files = glob.glob(os.path.join(LIB_MUSIC_DIR, "*.mp3"))
+    music_files.extend(glob.glob(os.path.join(LIB_MUSIC_DIR, "*.wav")))
     
-    # Create the background clip
-    if is_image:
-        log(f"Using image as background: {background_path}", "🖼️")
-        background_clip = ImageClip(background_path).set_duration(audio_duration)
-        background_clip = resize_video(background_clip, target_resolution)
+    if not music_files:
+        return None
+    
+    return random.choice(music_files)
+
+def create_video_from_story(story_name, output_path=None, quality=1.0, force=False):
+    """Create a video for a specific story by combining voice lines with background video and music.
+    
+    Args:
+        story_name: Name of the story (without extension)
+        output_path: Path to save the output video (default: output/videos/{story_name}.mp4)
+        quality: Quality factor for the video resolution (1.0 = full resolution, 0.5 = half resolution)
+        force: Whether to force regeneration even if the video already exists
+        
+    Returns:
+        Path to the created video file, or None if creation failed
+    """
+    # Determine the output path if not provided
+    if output_path is None:
+        output_path = os.path.join(VIDEOS_OUTPUT_DIR, f"{story_name}.mp4")
+    
+    # Check if the video already exists and skip if not forcing regeneration
+    if os.path.exists(output_path) and not force:
+        log(f"Video already exists: {output_path}", "⏩")
+        log("Use --force to regenerate", "💡")
+        return output_path
+    
+    # Get all voice lines for this story
+    voice_files = get_voice_lines(story_name)
+    if not voice_files:
+        log(f"No voice lines found for story: {story_name}", "❌")
+        return None
+    
+    log(f"Found {len(voice_files)} voice lines for story: {story_name}", "🔊")
+    
+    # Get delay settings from config
+    start_delay = CONFIG.get('video', {}).get('start_delay', 2.0)
+    end_delay = CONFIG.get('video', {}).get('end_delay', 10.0)
+    line_delay = CONFIG.get('video', {}).get('line_delay', 1.0)
+    
+    log(f"Using delays: start={start_delay}s, between lines={line_delay}s, end={end_delay}s", "⏱️")
+    
+    # Load all voice line audio clips
+    voice_clips = [AudioFileClip(file) for file in voice_files]
+    
+    # Create silent clips for delays
+    from moviepy.audio.AudioClip import AudioClip
+    start_silence = AudioClip(make_frame=lambda t: 0, duration=start_delay)
+    end_silence = AudioClip(make_frame=lambda t: 0, duration=end_delay)
+    line_silence = AudioClip(make_frame=lambda t: 0, duration=line_delay)
+    
+    # Insert silence between voice clips
+    clips_with_delays = [start_silence]  # Start with initial delay
+    
+    for i, clip in enumerate(voice_clips):
+        clips_with_delays.append(clip)
+        # Add delay between clips (except after the last one)
+        if i < len(voice_clips) - 1:
+            clips_with_delays.append(line_silence)
+    
+    # Add end delay
+    clips_with_delays.append(end_silence)
+    
+    # Concatenate all clips with delays
+    log("Concatenating voice lines with delays...", "🔊")
+    full_audio = concatenate_audioclips(clips_with_delays)
+    audio_duration = full_audio.duration
+    
+    log(f"Total audio duration: {audio_duration:.2f} seconds", "⏱️")
+    
+    # Get a random background video
+    background_path = get_random_background_video()
+    if not background_path:
+        log("No background videos found in lib/videos", "❌")
+        return None
+    
+    log(f"Using background video: {os.path.basename(background_path)}", "🎥")
+    
+    # Get a random background music
+    music_file = get_random_background_music()
+    if not music_file:
+        log("No background music found in lib/music", "⚠️")
     else:
-        log(f"Using video as background: {background_path}", "🎞️")
-        background_clip = VideoFileClip(background_path)
-        
-        # Loop the background video if it's shorter than the audio
-        if background_clip.duration < audio_duration:
-            log(f"Background video ({background_clip.duration:.2f}s) is shorter than audio ({audio_duration:.2f}s), will loop", "🔄")
-            background_clip = background_clip.loop(duration=audio_duration)
-        else:
-            # Trim the background video if it's longer than the audio
-            background_clip = background_clip.subclip(0, audio_duration)
-        
-        background_clip = resize_video(background_clip, target_resolution)
+        log(f"Using background music: {os.path.basename(music_file)}", "🌻")
     
-    # Create the final audio track
-    if add_music and music_file and os.path.exists(music_file):
-        log(f"Adding background music: {music_file}", "🎵")
+    # Set the target resolution based on quality factor
+    base_width, base_height = 1920, 1080  # Base resolution (1080p)
+    target_width = int(base_width * quality)
+    target_height = int(base_height * quality)
+    target_resolution = (target_width, target_height)
+    
+    log(f"Target resolution: {target_width}x{target_height}", "📺")
+    
+    # Load the background video
+    background_clip = VideoFileClip(background_path)
+    
+    # Loop the background video if it's shorter than the audio
+    if background_clip.duration < audio_duration:
+        log(f"Background video ({background_clip.duration:.2f}s) is shorter than audio ({audio_duration:.2f}s), will loop", "🔄")
+        background_clip = background_clip.loop(duration=audio_duration)
+    else:
+        # Trim the background video if it's longer than the audio
+        log(f"Background video ({background_clip.duration:.2f}s) is longer than audio ({audio_duration:.2f}s), will trim", "✂️")
+        background_clip = background_clip.subclip(0, audio_duration)
+    
+    # Resize the background video to the target resolution
+    background_clip = resize_video(background_clip, target_resolution)
+    
+    # Create the final audio track with background music if available
+    if music_file and os.path.exists(music_file):
+        log(f"Adding background music: {os.path.basename(music_file)}", "🎵")
         music_clip = AudioFileClip(music_file)
         
         # Loop the music if it's shorter than the audio
         if music_clip.duration < audio_duration:
+            log(f"Music ({music_clip.duration:.2f}s) is shorter than audio ({audio_duration:.2f}s), will loop", "🔄")
             music_clip = music_clip.loop(duration=audio_duration)
         else:
             # Trim the music if it's longer than the audio
+            log(f"Music ({music_clip.duration:.2f}s) is longer than audio ({audio_duration:.2f}s), will trim", "✂️")
             music_clip = music_clip.subclip(0, audio_duration)
         
-        # Adjust the volume of the music
+        # Get music volume from config (default 33%)
+        music_volume = CONFIG.get('video', {}).get('music_volume', 0.33)
+        log(f"Setting music volume to {music_volume * 100:.0f}% of voice volume", "🔊")
         music_clip = music_clip.volumex(music_volume)
         
-        # Combine the narration and music
-        final_audio = CompositeAudioClip([audio_clip, music_clip])
+        # Combine the voice lines and music
+        final_audio = CompositeAudioClip([full_audio, music_clip])
     else:
-        final_audio = audio_clip
+        final_audio = full_audio
     
     # Set the audio of the background clip
     video_with_audio = background_clip.set_audio(final_audio)
     
-    # If no output path is provided, create one based on the audio filename
-    if output_path is None:
-        audio_filename = os.path.basename(audio_path)
-        audio_name = os.path.splitext(audio_filename)[0]
-        output_path = os.path.join(VIDEOS_DIR, f"{audio_name}.mp4")
-    
-    # Get the output format from config or use default
-    output_format = CONFIG.get('video', {}).get('output_format', 'mp4')
+    # Create the output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     # Write the final video
-    log(f"Rendering final video...", "🎬")
+    log(f"Rendering final video for {story_name}...", "🎥")
     video_with_audio.write_videofile(
         output_path,
         codec='libx264',
         audio_codec='aac',
-        temp_audiofile=os.path.join(VIDEOS_DIR, "temp_audio.m4a"),
+        temp_audiofile=os.path.join(VIDEOS_OUTPUT_DIR, "temp_audio.m4a"),
         remove_temp=True,
         fps=30
     )
@@ -256,13 +335,19 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="SleepTeller - Video Composition Module")
     
-    parser.add_argument("-c", "--config", default="configs/sample.yaml", help="Path to the config file (default: configs/sample.yaml)")
-    parser.add_argument("-a", "--audio", help="Path to the audio file (if not specified, uses the latest)")
-    parser.add_argument("-b", "--background", help="Path to the background video or image (overrides config)")
-    parser.add_argument("-m", "--music", help="Path to the background music file (overrides config)")
-    parser.add_argument("--no-music", action="store_true", help="Disable background music even if specified in config")
+    parser.add_argument("-s", "--story", help="Process only the specified story (filename without extension)")
+    parser.add_argument("-f", "--force", action="store_true", help="Force regeneration even for existing videos")
+    parser.add_argument("-q", "--quality", type=float, default=1.0, help="Quality factor for video resolution (1.0 = 1080p, 0.5 = 540p)")
     
     return parser.parse_args()
+
+def cleanup_moviepy():
+    """Clean up MoviePy resources to prevent FFMPEG reader errors."""
+    try:
+        import gc
+        gc.collect()
+    except Exception as e:
+        log(f"Cleanup warning (non-critical): {str(e)}", "⚠️")
 
 def main():
     """Main entry point for the script."""
@@ -271,62 +356,71 @@ def main():
     args = parse_args()
     
     # Load configuration
-    CONFIG = load_config(args.config)
+    CONFIG = load_config()
     
-    # Update directories based on config
+    # Update directories
     update_directories()
     
-    # Get the audio file
-    audio_path = args.audio
-    if not audio_path:
-        audio_path = find_latest_audio()
-        if not audio_path:
-            log("No audio files found. Please generate audio first using make_audio.py", "❌")
-            return None
+    # Check if lib directories exist and have content
+    if not os.path.exists(LIB_VIDEOS_DIR) or not os.listdir(LIB_VIDEOS_DIR):
+        log(f"No background videos found in {LIB_VIDEOS_DIR}", "❌")
+        log("Please add some video files to the lib/videos directory", "💡")
+        return 1
     
-    log(f"Using audio file: {os.path.basename(audio_path)}", "🔊")
+    if not os.path.exists(LIB_MUSIC_DIR) or not os.listdir(LIB_MUSIC_DIR):
+        log(f"No background music found in {LIB_MUSIC_DIR}", "⚠️")
+        log("You may want to add some music files to the lib/music directory", "💡")
     
-    # Get the background file
-    background_path = args.background or CONFIG.get('video', {}).get('background_loop')
+    # Get all story files or filter to a specific one
+    all_story_files = get_story_files()
+    if not all_story_files:
+        log("No story files found in output/stories", "❌")
+        log("Please generate stories first using make_story.py", "💡")
+        return 1
     
-    if not background_path:
-        log("No background file specified in config or command line", "❌")
-        return None
-    
-    log(f"Using background: {background_path}", "🎬")
-    
-    # Determine if we should add background music
-    add_music = not args.no_music and CONFIG.get('video', {}).get('add_music', False)
-    
-    # Get the music file
-    music_file = args.music or CONFIG.get('video', {}).get('music_file')
-    music_volume = CONFIG.get('video', {}).get('music_volume', 0.2)
-    
-    if add_music and not music_file:
-        log("Background music is enabled but no music file specified", "⚠️")
-        add_music = False
-    
-    # Create the video
-    video_path = create_video(
-        audio_path=audio_path,
-        background_path=background_path,
-        add_music=add_music,
-        music_file=music_file,
-        music_volume=music_volume
-    )
-    
-    if video_path:
-        log(f"Video creation complete!", "🎉")
-        log(f"Video saved to: {video_path}", "🎬")
-        return video_path
+    # Filter to a specific story if requested
+    if args.story:
+        story_files = [f for f in all_story_files if os.path.splitext(os.path.basename(f))[0] == args.story]
+        if not story_files:
+            log(f"Story not found: {args.story}", "❌")
+            return 1
     else:
-        log("Video creation failed", "❌")
-        return None
+        story_files = all_story_files
+    
+    log(f"Processing {len(story_files)} stories", "📝")
+    
+    # Process each story
+    successful = 0
+    for story_file in story_files:
+        story_name = os.path.splitext(os.path.basename(story_file))[0]
+        log(f"\nProcessing story: {story_name}", "📝")
+        
+        # Create video for this story
+        video_path = create_video_from_story(
+            story_name=story_name,
+            quality=args.quality,
+            force=args.force
+        )
+        
+        if video_path:
+            log(f"Video created successfully: {video_path}", "✅")
+            successful += 1
+    
+    # Print summary
+    log(f"\nVideo creation complete! {successful}/{len(story_files)} videos created successfully", "🎉")
+    
+    # Clean up MoviePy resources to prevent FFMPEG reader errors
+    cleanup_moviepy()
+    
+    return 0
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
         log("\nProcess interrupted by user", "⚠️")
-        log("Exiting gracefully...", "🛑")
+        log("Exiting gracefully...", "🔴")
+    finally:
+        # Ensure cleanup happens even if there's an exception
+        cleanup_moviepy()
         sys.exit(130)  # Standard exit code for SIGINT

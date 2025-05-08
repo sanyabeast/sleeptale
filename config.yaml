@@ -19,8 +19,6 @@ llm:
 
 # Story Generation Configuration
 story:
-  # Topic for the story (what the story should be about)
-  topic: "floating on a calm ocean under a starry night sky"
   # Target duration in minutes (story will continue generating until this is reached)
   target_duration_minutes: 60
   # LLM model to use
@@ -33,41 +31,31 @@ story:
   chunk_size: 500
   # Number of words to keep as context from previous chunks
   context_size: 200
+  # Average duration of each sentence in minutes (e.g., 0.13 = 7.8 seconds)
+  sentence_duration_minutes: 0.125
 
 # Voice Generation Configuration
 voice:
   # URL to your TTS server
   tts_server: "http://localhost:5001/generate"
   # Voice profile to use
-  voice_sample: "C:\\ML\\database\\voice\\ai1-en-US-Joseph.mp3"
-  # Speech rate (lower = slower, more soothing)
-  speech_rate: 0.85
+  voice_sample: "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Calm_Dude.mp3"
   # Audio normalization settings
   normalization:
     # Target dB level for audio normalization
     target_db: -20.0
     # Whether to automatically normalize generated audio
     enabled: true
-  # Silence trimming settings
-  silence_trimming:
-    # Whether to trim silence from the end of audio chunks
-    enabled: true
-    # Maximum silence to keep at the end in seconds
-    max_silence_sec: 1.0
-    # Threshold in dB below which audio is considered silence
-    threshold_db: -50
 
 # Video Generation Configuration
 video:
-  # Path to the background video or image file
-  background_loop: "lib/backgrounds/soft_starry_night.mp4"
-  # Whether to add background music
-  add_music: true
-  # Path to the background music file
-  music_file: "lib/music/calm_ambient.mp3"
-  # Volume multiplier for background music (0.0 to 1.0)
-  music_volume: 0.2
-  # Output video format
-  output_format: "mp4"
-  # Video resolution (width x height)
+  # Delay before voice lines start playing (in seconds)
+  start_delay: 2.0
+  # Delay after voice lines finish (in seconds)
+  end_delay: 10.0
+  # Delay between each voice line (in seconds)
+  line_delay: 0.5
+  # Background music volume (relative to voice lines, 0.0-1.0)
+  music_volume: 0.5
+  # Video resolution (width x height) - used for quality scaling
   resolution: "1920x1080"

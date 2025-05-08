@@ -2,103 +2,152 @@
 
 A system to generate long, monotonous stories with voiceover and video files to help users fall asleep.
 
+**Author:** sanyabeast  
+**License:** MIT
+
 ---
 
 ## 📖 Overview
 
 **SleepTeller** is a Python-driven project designed to help people fall asleep by generating monotonous, low-stimulation stories on customizable topics.  
 It combines:  
-✅ iterative LLM-based story generation,  
-✅ intelligent TTS narration with audio post-processing,  
-✅ and seamless merging with looping background video.
+✅ iterative LLM-based story generation using LM Studio,  
+✅ intelligent TTS narration with audio normalization,  
+✅ and seamless merging with random background videos and music.
 
 ---
 
 ## 🌟 Features
 
-- **Iterative Story Generation**  
-  Automatically handles context window limits by chaining LLM calls, continuing the story until the desired length is reached.
+- **Smart Story Generation**  
+  Uses LLM to generate calming stories with consistent duration estimation (approximately 1.2 minutes per sentence).
 
-- **Thematic Control**  
-  Supports configurable topics (e.g., countryside walks, spaceship maintenance, forgotten villages) to shape the storytelling mood.
+- **Dynamic Topic Generation**  
+  Automatically generates calming, sleep-inducing topics with both titles and detailed summaries.
 
-- **Duration Targeting**  
-  Lets you specify target duration (e.g., 20 min, 45 min) and keeps generating until that goal is met.
+- **Duration Control**  
+  Specify target duration in minutes (e.g., `-d 10`) and number of stories to generate (e.g., `-c 2`).
 
 - **TTS Narration with Audio Processing**  
-  Uses TTS to narrate the story in a calm, slow voice, with optional silence trimming and audio normalization.
+  Uses TTS to narrate the story with consistent -20dB audio normalization.
 
-- **Looping Visual Background**  
-  Combines the final audio track with a looping background video (or static image) for a full audiovisual package.
+- **Random Visual Backgrounds**  
+  Automatically selects random background videos from your library to create a visually calming experience.
 
-- **Optional Background Music**  
-  Allows adding subtle, non-distracting music for extra atmosphere.
+- **Random Background Music**  
+  Adds subtle, non-distracting music from your library with configurable volume.
 
-- **Configurable Pipeline**  
-  Each stage (generation → narration → video creation) can run independently or be chained together.
+- **Configurable Quality**  
+  Adjustable video quality settings (e.g., `-q 0.25` for lower resolution) for different device requirements.
 
-- **Organized Outputs**  
-  Separates outputs into project folders for clean management.
+- **Simplified Configuration**  
+  Uses a single `config.yaml` file in the root directory for all settings.
 
 ---
 
-## 🛠 Installation
+## 📝 Notes
 
-1️⃣ Clone the repository:
-```bash
-git clone <repository-url>
-cd sleepteller
-2️⃣ Install Python dependencies:
+- **Story Generation**: The story generator creates monotonous, low-stimulation content by design. It avoids excitement, drama, or narrative tension.
 
-bash
-Copy
-Edit
+- **Voice Selection**: For best results, use a calm, slightly monotone voice sample.
+
+- **Background Videos**: Simple, non-distracting backgrounds work best. Avoid bright colors or rapid movement.
+
+- **Background Music**: Select ambient, non-melodic tracks without vocals or strong rhythms.
+
+- **Performance**: Story generation takes about 15-30 seconds per story.
+
+- **Storage**: The final videos can be large. Use lower quality settings (e.g., `-q 0.25`) for smaller file sizes.
+
+## 🔧 Requirements
+
+- **Python 3.8+**
+- **LM Studio** running locally with a loaded model
+- **TTS Server** running locally
+- **MoviePy** and its dependencies for video processing
+- **librosa** and **soundfile** for audio processing
+
+## 🚀 Quick Start
+
+1. Make sure LM Studio and TTS Server are running
+2. Create a `config.yaml` file in the root directory
+3. Run `python make.py -d 10 -c 2 -q 0.25` to generate:
+   - Two 10-minute stories
+   - Voice lines for each story
+   - Final videos at 25% quality
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 👤 Author
+
+**sanyabeast**
 pip install -r requirements.txt
-3️⃣ Set up an LLM API:
-- Option 1: Run a local LM Studio server (default: http://localhost:1234/v1)
-- Option 2: Use an external API (configure in your YAML file)
+```
 
-4️⃣ Set up a TTS server:
-- Option 1: Use Zonos TTS (default: http://localhost:5001/generate)
-- Option 2: Configure another TTS service in your YAML file
+4️⃣ Set up the required services:
+- **LM Studio**: Run a local LM Studio server (default: http://localhost:1234/v1)
+- **TTS Server**: Set up a TTS server (default: http://localhost:5001/generate)
+
+5️⃣ Prepare your media libraries:
+```bash
+# Create directories for background media
+mkdir -p lib/videos lib/music lib/voice
+```
+
+6️⃣ Add your media files:
+- Add background videos to `lib/videos/`
+- Add background music to `lib/music/`
+- Add voice samples to `lib/voice/`
 
 ## 📁 Project Structure
 ```bash
-sleepteller/
-├── configs/               # YAML configs for different projects
+sleeptale/
+├── config.yaml            # Main configuration file
 ├── lib/
-│   ├── backgrounds/       # Background video or image loops
-│   ├── music/             # Optional background music tracks
+│   ├── videos/            # Background videos
+│   ├── music/             # Background music tracks
+│   └── voice/             # Voice sample files
 ├── output/
-│   └── {project_name}/    # Generated content per project
-│       ├── stories/       # Full generated text files
-│       ├── audio/         # TTS-generated audio files
-│       └── videos/        # Final rendered videos
-├── make_story.py          # Script for iterative story generation
-├── make_audio.py          # Script for generating TTS audio
-├── make_video.py          # Script for combining audio + visuals
-├── sleepteller.py         # Main pipeline script
-└── clean.py               # Cleanup utility
+│   ├── stories/           # Generated story YAML files
+│   ├── voice_lines/       # Generated voice line audio files
+│   └── videos/            # Final rendered videos
+├── make_story.py          # Script for story generation
+├── make_voice_lines.py    # Script for generating voice lines
+└── make_video.py          # Script for creating final videos
 ```
 ## ⚙️ Configuration
-In your project YAML config (configs/sample.yaml by default), you can control:
+The project uses a single configuration file (`config.yaml`) with the following sections:
 
-### Story Settings
+### Story Generation Settings
 ```yaml
 story:
-  topic: "a gentle walk through a quiet forest"
-  target_duration_minutes: 20
+  target_duration_minutes: 60
   model: "gemma-3-12b-it-qat"
   max_tokens_per_chunk: 1000
   temperature: 0.7
 ```
-### Voice Settings
+
+### Voice Generation Settings
 ```yaml
 voice:
   tts_server: "http://localhost:5001/generate"
-  voice_profile: "soft_female"
-  speech_rate: 0.85
+  voice_sample: "path/to/voice/sample.mp3"
   normalization:
+    target_db: -20.0
+    enabled: true
+```
+
+### Video Generation Settings
+```yaml
+video:
+  start_delay: 2.0
+  end_delay: 10.0
+  line_delay: 1.0
+  music_volume: 0.5
+  resolution: "1920x1080"
+```
     target_db: -20.0
     enabled: true
   silence_trimming:
@@ -176,23 +225,78 @@ Each script will use `configs/sample.yaml` by default, or you can specify a diff
 - `-b, --background`: Override background video/image
 - `-m, --music`: Override background music file
 - `--no-music`: Disable background music
+
+## 📋 Example Workflow
+
+### Complete Workflow
+
+1. **Generate a story with a custom topic**:
+   ```bash
+   python make_story.py -t "floating on a calm ocean under a starry night sky" -d 30
+   ```
+
+2. **Generate voice lines for all stories**:
+   ```bash
+   python make_voice_lines.py
+   ```
+
+3. **Create videos with half resolution**:
+   ```bash
+   python make_video.py -q 0.5
+   ```
+
+### Processing a Specific Story
+
+1. **Generate voice lines for a specific story**:
+   ```bash
+   python make_voice_lines.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012.yaml
+   ```
+
+2. **Create video for a specific story**:
+   ```bash
+   python make_video.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012
+   ```
+
+### Regenerating Content
+
+1. **Force regeneration of voice lines**:
+   ```bash
+   python make_voice_lines.py --force
+   ```
+
+2. **Force regeneration of videos**:
+   ```bash
+   python make_video.py -f
+   ```
+
 ## 🧹 Cleanup
 To clean generated outputs:
 
 ```bash
-python clean.py --project your_project --all
+# On Windows
+rd /s /q output
+# On macOS/Linux
+rm -rf output
+```
+
+## 🎥 Master Script
+
+The `make.py` script automates the entire workflow from story generation to final video:
+
+```bash
+python make.py -c 3 -d 30 -q 0.75
 ```
 
 Options:
-- `--stories`: Remove generated story text files
-- `--audio`: Remove generated audio files
-- `--videos`: Remove final video files
-- `--all`: Remove everything for the project
+- `-m, --model`: Model to use for story generation
+- `-c, --count`: Number of stories to generate
+- `-d, --duration`: Duration of stories in minutes
+- `-q, --quality`: Quality of final video (1.0 = 1080p, 0.5 = 540p)
 
 📌 License
 MIT License
 
-(c) 2025 SleepTeller Contributors
+(c) 2025 sanyabeast
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so.
 

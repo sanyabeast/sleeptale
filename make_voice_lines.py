@@ -30,32 +30,17 @@ def log(message, emoji=None):
     else:
         print(message)
 
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        log("Error: No config file specified.", "❌")
-        log("Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml", "💡")
-        sys.exit(1)
-    
+def load_config():
+    """Load configuration from config.yaml file."""
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            log(f"Using config filename '{config_name}' as project name", "ℹ️")
-        
         return config
     except FileNotFoundError:
-        log(f"Error: Config file not found: {config_path}", "❌")
-        log(f"Hint: Make sure the config file exists. Example: configs/sample.yaml", "💡")
+        log("Error: config.yaml not found in the root directory", "❌")
         sys.exit(1)
     except yaml.YAMLError as e:
-        log(f"Error parsing config file: {e}", "❌")
+        log(f"Error parsing config.yaml: {e}", "❌")
         sys.exit(1)
 
 # Global variables
@@ -229,7 +214,7 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
     story = load_story(story_file)
     
     log("\n" + "="*50)
-    log(f"Generating voice lines for: {story['topic']}")
+    log(f"Generating voice lines for: {story['topic_title']}")
     log("="*50)
     
     # Calculate total sentences for progress tracking
@@ -291,7 +276,7 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
             log(f"Failed to generate: {output_filename}", "❌")
     
     # Show summary for this story
-    log(f"\nSummary for '{story['topic']}':", "📊")
+    log(f"\nSummary for '{story['topic_title']}':", "📊")
     log(f"  - Total sentences: {total_sentences}", "📊")
     log(f"  - Generated: {completed}", "📊")
     log(f"  - Skipped: {skipped}", "📊")
@@ -300,8 +285,6 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Generate voice lines for stories')
-    parser.add_argument('-c', '--config', type=str, default="config.yaml",
-                        help='Path to the configuration file')
     parser.add_argument('-s', '--story', type=str,
                         help='Process only the specified story file (filename only, not full path)')
     parser.add_argument('--clean', action='store_true', 
@@ -320,9 +303,9 @@ def main():
     """Main function to process all stories."""
     args = parse_arguments()
     
-    # Load configuration from specified file
+    # Load configuration
     global CONFIG, TTS_SERVER, VOICE_SAMPLE, SPEECH_RATE, STORIES_DIR, VOICE_LINES_DIR
-    CONFIG = load_config(args.config)
+    CONFIG = load_config()
     
     # Voice generation settings
     TTS_SERVER = CONFIG["voice"]["tts_server"]

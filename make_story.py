@@ -18,37 +18,25 @@ STORIES_DIR = None
 class StoryChunk(BaseModel):
     sentences: list[str]
     short_summary: str
-    estimated_duration: int  # in minutes
+
+class Topic(BaseModel):
+    title: str
+    summary: str
 
 class Topics(BaseModel):
-    topics: list[str]
+    topics: list[Topic]
 
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        print("❌ Error: No config file specified.")
-        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
-        sys.exit(1)
-    
+def load_config():
+    """Load configuration from config.yaml file."""
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            print(f"ℹ️ Using config filename '{config_name}' as project name")
-        
         return config
     except FileNotFoundError:
-        print(f"❌ Error: Config file not found: {config_path}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
+        print("❌ Error: config.yaml not found in the root directory")
         sys.exit(1)
     except yaml.YAMLError as e:
-        print(f"❌ Error parsing config file: {e}")
+        print(f"❌ Error parsing config.yaml: {e}")
         sys.exit(1)
 
 def update_directories():
@@ -100,7 +88,7 @@ def initialize_model(model_name=None, seed=None):
         return None
 
 def generate_topics(model):
-    """Generate a list of story topics using the LLM.
+    """Generate a list of diverse but calming story topics using the LLM.
     
     Args:
         model: The initialized LLM model
@@ -108,27 +96,48 @@ def generate_topics(model):
     Returns:
         List of generated topics
     """
-    topics = model.respond(
+    response = model.respond(
         """
-        You are a creative assistant helping to generate bedtime stories.
+        You are a creative assistant helping to generate bedtime story topics.
 
         Task:
-        - Provide exactly 5 calm, relaxing, slightly boring topics suitable for long, sleep-inducing stories.
-        - Avoid topics that are too exciting, dramatic, or emotional.
-        - Example topics: clouds drifting, quiet forests, soft rain on windows.
-        - Format response strictly as JSON: { "topics": [ "topic1", "topic2", "topic3", "topic4", "topic5" ] }
+        - Provide exactly 5 calm, slow-paced, sleep-friendly topics suitable for long, monotonous stories.
+        - Include a gentle variety across settings: natural scenes, everyday routines, historical events, old objects, or imaginary calm places.
+        - Avoid topics that are dramatic, violent, thrilling, or emotionally intense.
+        - Each topic must include:
+            • A short, poetic or slightly abstract title (2–6 words).
+            • A one-sentence summary describing the type of story that could be told.
+        - Example topics:
+            • "The Journey of a River": Following the path of a river from its mountain source to the sea.
+            • "Old Books on a Shelf": Exploring the quiet lives and histories of forgotten books.
+            • "Moonlight Across Fields": A slow night walk under the moon in the countryside.
+            • "The Village Bell Tower": Telling the quiet history of an old bell and the village it watches over.
+            • "A Cat’s Afternoon Nap": Following the slow, dreamy thoughts of a cat drifting in and out of sleep.
+
+        Format response strictly as JSON:
+        {
+          "topics": [
+            { "title": "topic1", "summary": "summary1" },
+            { "title": "topic2", "summary": "summary2" },
+            { "title": "topic3", "summary": "summary3" },
+            { "title": "topic4", "summary": "summary4" },
+            { "title": "topic5", "summary": "summary5" }
+          ]
+        }
         """,
         response_format=Topics
     )
-    return topics.parsed["topics"]
+    
+    topics = [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
+    return topics
 
 def generate_story(model, topic, target_duration=None):
     """Generate a long story by iteratively querying the LLM.
     
     Args:
-        model: The initialized LLM model
-        topic: The topic or theme for the story
-        target_duration: Target duration in minutes (default: from config)
+        model: The LLM model to use
+        topic: The topic object with title and summary
+        target_duration: Target duration in minutes
         
     Returns:
         Dictionary containing the generated story data
@@ -142,7 +151,8 @@ def generate_story(model, topic, target_duration=None):
     all_sentences = []
     cumulative_summary = ""
 
-    print(f"🛌 Generating story on topic: '{topic}'")
+    print(f"🛌 Generating story on topic: '{topic.title}'")
+    print(f"📝 Topic summary: {topic.summary}")
     print(f"⏱️ Target duration: {target_duration} minutes")
 
     while total_duration < target_duration:
@@ -156,13 +166,12 @@ def generate_story(model, topic, target_duration=None):
 
         # Build context
         last_sentences = all_sentences[-5:] if len(all_sentences) >= 5 else all_sentences
-        context_snippet = " ".join(last_sentences) or cumulative_summary or topic
+        context_snippet = " ".join(last_sentences) or cumulative_summary or topic.summary
 
         # Build phase-specific instruction
         if phase == "start":
             phase_instruction = f"""
-            Begin a gentle, sleep-inducing story on the topic: "{topic}".
-            Set the scene slowly, without jumping into events.
+            Begin a gentle, sleep-inducing story about {topic.title}. Use this summary as a guide: {topic.summary}. Set the scene slowly, without jumping into events.
             Focus on calm atmosphere and subtle environmental details.
             """
         elif phase == "continue":
@@ -186,32 +195,34 @@ def generate_story(model, topic, target_duration=None):
         - Focus on gentle descriptions, minor environmental changes, and mild progression.
         - Avoid repeating earlier details.
         - Imagine the reader is drifting off to sleep, so avoid action or surprises.
-        - Estimate the time (in minutes) to read this chunk slowly.
         - Provide a brief summary (1–2 sentences) of only this **new** section.
 
         Response format (strict JSON):
         {{
             "sentences": ["sentence1", "sentence2", "..."],
-            "short_summary": "summary here",
-            "estimated_duration": integer_minutes
+            "short_summary": "summary here"
         }}
         """
 
         chunk = model.respond(prompt, response_format=StoryChunk)
-
+        
+        # Calculate duration based on configured sentence duration
+        sentence_duration = CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
+        chunk_duration = len(chunk.parsed["sentences"]) * sentence_duration
+        
         chunks.append(chunk.parsed)
         cumulative_summary += " " + chunk.parsed["short_summary"]
-        total_duration += chunk.parsed["estimated_duration"]
+        total_duration += chunk_duration
         all_sentences.extend(chunk.parsed["sentences"])
 
         print(f"🧩 Preview: {chunk.parsed['sentences'][0]}")
         print(f"⏳ Current total duration: {total_duration}/{target_duration} minutes ({(total_duration/target_duration*100):.1f}%)")
 
     return {
-        "topic": topic,
-        "sentences": all_sentences,
-        "chunks": chunks,
-        "total_duration": total_duration
+        'topic_title': topic.title,
+        'topic_summary': topic.summary,
+        'total_duration': total_duration,
+        'sentences': all_sentences
     }
 
 def save_story_yaml(story_data):
@@ -223,9 +234,9 @@ def save_story_yaml(story_data):
     Returns:
         Path to the saved story file
     """
-    # Create a filename based on the topic
-    topic = story_data['topic']
-    safe_topic = "".join(c if c.isalnum() or c in " _-" else "_" for c in topic)
+    # Create a filename based on the topic title
+    topic_title = story_data['topic_title']
+    safe_topic = "".join(c if c.isalnum() or c in " _-" else "_" for c in topic_title)
     safe_topic = safe_topic.replace(" ", "_").lower()
     
     # Truncate if too long
@@ -239,7 +250,8 @@ def save_story_yaml(story_data):
     
     # Convert story data to a format suitable for YAML
     yaml_data = {
-        'topic': story_data['topic'],
+        'topic_title': story_data['topic_title'],
+        'topic_summary': story_data['topic_summary'],
         'total_duration': story_data['total_duration'],
         'sentence_count': len(story_data['sentences']),
         'sentences': story_data['sentences']
@@ -255,11 +267,10 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Generate a long, monotonous story using an LLM")
     
-    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the config file")
-    parser.add_argument("-t", "--topic", help="Override the story topic from config")
-    parser.add_argument("-d", "--duration", type=int, help="Override the target duration in minutes")
-    parser.add_argument("-m", "--model", help="Override the model to use")
-    parser.add_argument("-s", "--seed", type=int, help="Set random seed for reproducibility")
+    parser.add_argument("-t", "--topic", help="Story topic to use")
+    parser.add_argument("-d", "--duration", type=int, help="Target duration in minutes")
+    parser.add_argument("-m", "--model", help="Model to use (overrides config)")
+    parser.add_argument("-s", "--seed", type=int, help="Random seed for reproducibility")
     
     return parser.parse_args()
 
@@ -270,7 +281,7 @@ def main():
     
     # Load configuration
     global CONFIG
-    CONFIG = load_config(args.config)
+    CONFIG = load_config()
     
     # Update directories
     update_directories()
@@ -290,14 +301,17 @@ def main():
     try:
         # If topic is provided, use it; otherwise generate topics and select one
         if args.topic:
-            topic = args.topic
-            print(f"🎯 Using provided topic: {topic}")
+            # Create a Topic object from the provided string
+            topic = Topic(title=args.topic, summary=f"A calming story about {args.topic}")
+            print(f"🎯 Using provided topic: {topic.title}")
         else:
             # Generate topics and select one
             topics = generate_topics(model)
-            print(f"🌙 Suggested topics: {topics}")
+            print(f"🌙 Suggested topics:")
+            for i, t in enumerate(topics):
+                print(f"  {i+1}. {t.title} - {t.summary}")
             topic = random.choice(topics)
-            print(f"🎯 Selected topic: {topic}")
+            print(f"🎯 Selected topic: {topic.title} - {topic.summary}")
         
         # Generate the story
         story_data = generate_story(model, topic, target_duration)

@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Master script for DeepVideo2 that sequentially runs all steps of the video generation process:
-1. make_scenarios.py - Generate scenario scripts
-2. make_voice_lines.py - Generate voice lines for each scenario
-3. make_videos.py - Generate videos from scenarios and voice lines
+Master script for SleepTale that sequentially runs all steps of the video generation process:
+1. make_story.py - Generate sleep stories
+2. make_voice_lines.py - Generate voice lines for each story
+3. make_video.py - Generate videos from stories and voice lines
 """
 
 import argparse
@@ -18,51 +18,41 @@ import glob
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="DeepVideo2 Master Script - Generate complete videos in one step")
+    parser = argparse.ArgumentParser(description="SleepTale Master Script - Generate complete sleep videos in one step")
     
-    parser.add_argument("-c", "--config", required=True, help="Path to the config file")
-    parser.add_argument("-n", "--num", type=int, default=1, help="Target number of scenarios/videos to have (default: 1)")
-    parser.add_argument("-q", "--quality", type=float, default=1.0, help="Video quality factor (0.0-1.0, default: 1.0)")
-    parser.add_argument("-m", "--model", type=str, help="Custom LLM model to use (overrides config)")
-    parser.add_argument("--skip-voices", action="store_true", help="Skip voice generation step")
+    parser.add_argument("-c", type=int, default=1, help="Number of stories to generate (default: 1)")
+    parser.add_argument("-m", "--model", type=str, help="Model to use for story generation (overrides config)")
+    parser.add_argument("-d", "--duration", type=int, help="Duration of stories in minutes (overrides config)")
+    parser.add_argument("-q", "--quality", type=float, default=1.0, help="Quality factor for video resolution (1.0 = 1080p, 0.5 = 540p)")
     
     return parser.parse_args()
 
-def load_config(config_path):
-    """Load configuration from YAML file."""
+def load_config():
+    """Load configuration from config.yaml file."""
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            print(f"ℹ️ Using config filename '{config_name}' as project name")
-        
         return config
     except FileNotFoundError:
-        print(f"❌ Error: Config file not found: {config_path}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
+        print("❌ Error: config.yaml not found in the root directory")
         sys.exit(1)
     except yaml.YAMLError as e:
-        print(f"❌ Error parsing config file: {e}")
+        print(f"❌ Error parsing config.yaml: {e}")
+        sys.exit(1)
         sys.exit(1)
 
-def count_existing_scenarios(project_name):
-    """Count the number of existing scenario files for the project."""
-    scenarios_dir = os.path.join("output", project_name, "scenarios")
+def count_existing_stories():
+    """Count the number of existing story files."""
+    stories_dir = os.path.join("output", "stories")
     
     # Create directory if it doesn't exist
-    if not os.path.exists(scenarios_dir):
-        os.makedirs(scenarios_dir, exist_ok=True)
+    if not os.path.exists(stories_dir):
+        os.makedirs(stories_dir, exist_ok=True)
         return 0
     
-    # Count YAML files in the scenarios directory
-    scenario_files = glob.glob(os.path.join(scenarios_dir, "*.yaml"))
-    return len(scenario_files)
+    # Count YAML files in the stories directory
+    story_files = glob.glob(os.path.join(stories_dir, "*.yaml"))
+    return len(story_files)
 
 def run_script(script_name, args):
     """Run a script with the given arguments and return its exit code."""
@@ -95,76 +85,68 @@ def main():
     """Main entry point for the script."""
     args = parse_args()
     
-    # Validate config file
-    if not os.path.exists(args.config):
-        print(f"❌ Error: Config file not found: {args.config}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
-        return 1
-    
     # Validate quality
     if args.quality <= 0 or args.quality > 1:
         print(f"❌ Error: Quality must be between 0.0 and 1.0")
         return 1
     
-    # Load config to get project name
-    config = load_config(args.config)
+    # Load config
+    config = load_config()
     project_name = config.get("project_name", "default")
     
-    # Count existing scenarios
-    existing_count = count_existing_scenarios(project_name)
+    print(f"🌟 Starting SleepTale master script")
     
-    print(f"\n{'='*70}")
-    print(f"🎬 DEEPVIDEO2 MASTER SCRIPT")
-    print(f"{'='*70}")
-    print(f"Config: {args.config}")
-    print(f"Target number of videos: {args.num}")
-    print(f"Existing scenarios: {existing_count}")
-    print(f"Quality factor: {args.quality}")
-    if args.model:
-        print(f"Using custom model: {args.model}")
-    if args.skip_voices:
-        print(f"Voice generation: SKIPPED")
-    print(f"{'='*70}\n")
+    # Step 1: Generate stories
+    existing_stories = count_existing_stories()
+    stories_to_generate = max(0, args.c - existing_stories)
     
-    # Step 1: Generate scenarios (only if needed)
-    scenarios_to_generate = max(0, args.num - existing_count)
-    
-    if scenarios_to_generate > 0:
-        print(f"Generating {scenarios_to_generate} new scenarios to reach target of {args.num}")
-        scenario_args = ["-c", args.config, "-n", str(scenarios_to_generate)]
-        # Add model parameter if specified
-        if args.model:
-            scenario_args.extend(["-m", args.model])
-        exit_code = run_script("make_scenarios.py", scenario_args)
-        if exit_code != 0:
-            print("❌ Failed to generate scenarios. Stopping.")
-            return exit_code
+    if stories_to_generate > 0:
+        print(f"📝 Generating {stories_to_generate} new stories")
+        
+        # Generate each story
+        for i in range(args.c):
+            print(f"\n📝 Generating story {i+1} of {stories_to_generate}")
+            
+            # Build arguments for make_story.py
+            story_args = []
+            
+            if args.model:
+                story_args.extend(["-m", args.model])
+            
+            if args.duration:
+                story_args.extend(["-d", str(args.duration)])
+            
+            # Run the story generation script
+            exit_code = run_script("make_story.py", story_args)
+            if exit_code != 0:
+                print(f"❌ Story generation failed with exit code {exit_code}")
+                return exit_code
     else:
-        print(f"✅ Already have {existing_count} scenarios, which meets or exceeds target of {args.num}. Skipping scenario generation.")
+        print(f"✅ Already have {existing_stories} stories, no need to generate more")
     
-    # Step 2: Generate voice lines for all scenarios
-    if not args.skip_voices:
-        voice_args = ["-c", args.config]
-        exit_code = run_script("make_voice_lines.py", voice_args)
-        if exit_code != 0:
-            print("❌ Failed to generate voice lines. Stopping.")
-            return exit_code
+    # Step 2: Generate voice lines
+    voice_args = []
     
-    # Step 3: Generate videos
-    # Use -1 to process all unprocessed scenarios
-    video_args = ["-c", args.config, "-n", "-1"]
-    if args.quality != 1.0:
-        video_args.extend(["-q", str(args.quality)])
-    if args.skip_voices:
-        video_args.append("--skip-voices")
-    exit_code = run_script("make_videos.py", video_args)
+    exit_code = run_script("make_voice_lines.py", voice_args)
     if exit_code != 0:
-        print("❌ Failed to generate videos. Stopping.")
+        print(f"❌ Voice line generation failed with exit code {exit_code}")
         return exit_code
     
-    print(f"\n{'='*70}")
-    print(f"🎉 ALL STEPS COMPLETED SUCCESSFULLY!")
-    print(f"{'='*70}")
+    # Step 3: Generate videos
+    video_args = []
+    
+    if args.quality:
+        video_args.extend(["-q", str(args.quality)])
+    
+    exit_code = run_script("make_video.py", video_args)
+    if exit_code != 0:
+        print(f"❌ Video generation failed with exit code {exit_code}")
+        return exit_code
+    
+    print("\n" + "="*70)
+    print(f"🎉 All steps completed successfully!")
+    print("="*70)
+    
     return 0
 
 if __name__ == "__main__":
