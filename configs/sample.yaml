@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────
+# 🌙 SLEEPTELLER SAMPLE CONFIGURATION FILE
+# ─────────────────────────────────────────────────────
+# This is a sample configuration file for SleepTeller.
+# Copy this file to the configs directory and modify it for your own projects.
+# 
+# NOTE: The filename (without extension) will be used as the project name.
+# For example, if you name this file "forest_walk.yaml", the project name will be "forest_walk".
+
+# Project name (optional, will use filename if not specified)
+project_name: "sleepteller_demo"
+
+# LLM Configuration
+llm:
+  # API base URL for the LLM service (default is LM Studio local server)
+  api_base: "http://localhost:1234/v1"
+  # Optional seed for reproducibility (will be randomized if not specified)
+  seed: 42
+
+# Story Generation Configuration
+story:
+  # The topic or theme for the story
+  topic: "a gentle walk through a quiet forest at dusk"
+  # Target duration in minutes (story will continue generating until this is reached)
+  target_duration_minutes: 20
+  # LLM model to use
+  model: "gemma-3-4b-it-qat"
+  # Maximum tokens per LLM request
+  max_tokens_per_chunk: 1000
+  # Temperature for generation (higher = more creative, lower = more focused)
+  temperature: 0.7
+  # Number of words per chunk when generating the story
+  chunk_size: 500
+  # Number of words to keep as context from previous chunks
+  context_size: 200
+
+# Voice Generation Configuration
+voice:
+  # URL to your TTS server
+  tts_server: "http://localhost:5001/generate"
+  # Voice profile to use
+  voice_profile: "soft_female"
+  # Speech rate (lower = slower, more soothing)
+  speech_rate: 0.85
+  # Audio normalization settings
+  normalization:
+    # Target dB level for audio normalization
+    target_db: -20.0
+    # Whether to automatically normalize generated audio
+    enabled: true
+  # Silence trimming settings
+  silence_trimming:
+    # Whether to trim silence from the end of audio chunks
+    enabled: true
+    # Maximum silence to keep at the end in seconds
+    max_silence_sec: 1.0
+    # Threshold in dB below which audio is considered silence
+    threshold_db: -50
+
+# Video Generation Configuration
+video:
+  # Path to the background video or image file
+  background_loop: "lib/backgrounds/soft_starry_night.mp4"
+  # Whether to add background music
+  add_music: true
+  # Path to the background music file
+  music_file: "lib/music/calm_ambient.mp3"
+  # Volume multiplier for background music (0.0 to 1.0)
+  music_volume: 0.2
+  # Output video format
+  output_format: "mp4"
+  # Video resolution (width x height)
+  resolution: "1920x1080"
