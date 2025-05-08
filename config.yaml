@@ -15,16 +15,16 @@ llm:
   # API base URL for the LLM service (default is LM Studio local server)
   api_base: "http://localhost:1234/v1"
   # Optional seed for reproducibility (will be randomized if not specified)
-  seed: 42
+  # seed: 42  # Uncomment and set a value to use a fixed seed
 
 # Story Generation Configuration
 story:
   # Topic for the story (what the story should be about)
   topic: "floating on a calm ocean under a starry night sky"
   # Target duration in minutes (story will continue generating until this is reached)
-  target_duration_minutes: 20
+  target_duration_minutes: 60
   # LLM model to use
-  model: "gemma-3-4b-it-qat"
+  model: "gemma-3-12b-it-qat"
   # Maximum tokens per LLM request
   max_tokens_per_chunk: 1000
   # Temperature for generation (higher = more creative, lower = more focused)
@@ -39,7 +39,7 @@ voice:
   # URL to your TTS server
   tts_server: "http://localhost:5001/generate"
   # Voice profile to use
-  voice_profile: "soft_female"
+  voice_sample: "C:\\ML\\database\\voice\\ai1-en-US-Joseph.mp3"
   # Speech rate (lower = slower, more soothing)
   speech_rate: 0.85
   # Audio normalization settings
