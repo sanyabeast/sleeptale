@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument("-c", type=int, default=1, help="Number of stories to generate (default: 1)")
     parser.add_argument("-m", "--model", type=str, help="Model to use for story generation (overrides config)")
     parser.add_argument("-d", "--duration", type=int, help="Duration of stories in minutes (overrides config)")
-    parser.add_argument("-q", "--quality", type=float, default=1.0, help="Quality factor for video resolution (1.0 = 1080p, 0.5 = 540p)")
+    parser.add_argument("-q", "--quality", type=int, default=1080, help="Video quality as frame height (e.g., 720 for 720p, 1080 for 1080p)")
     
     return parser.parse_args()
 
@@ -85,10 +85,13 @@ def main():
     """Main entry point for the script."""
     args = parse_args()
     
-    # Validate quality
-    if args.quality <= 0 or args.quality > 1:
-        print(f"❌ Error: Quality must be between 0.0 and 1.0")
+    # Validate quality (common resolutions: 480p, 720p, 1080p, 1440p, 2160p)
+    valid_resolutions = [360, 480, 720, 1080, 1440, 2160]
+    if args.quality <= 0:
+        print(f"❌ Error: Quality (frame height) must be a positive number")
         return 1
+    if args.quality > 2160:
+        print(f"⚠️ Warning: Quality {args.quality}p is unusually high (>2160p)")
     
     # Load config
     config = load_config()

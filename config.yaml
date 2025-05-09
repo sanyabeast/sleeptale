@@ -43,7 +43,7 @@ voice:
   # Audio normalization settings
   normalization:
     # Target dB level for audio normalization
-    target_db: -20.0
+    target_db: -21.0
     # Whether to automatically normalize generated audio
     enabled: true
 
@@ -54,8 +54,8 @@ video:
   # Delay after voice lines finish (in seconds)
   end_delay: 10.0
   # Delay between each voice line (in seconds)
-  line_delay: 0.5
+  line_delay: 0.65
   # Background music volume (relative to voice lines, 0.0-1.0)
-  music_volume: 0.5
+  music_volume: 0.55
   # Video resolution (width x height) - used for quality scaling
   resolution: "1920x1080"

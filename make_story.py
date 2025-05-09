@@ -187,21 +187,29 @@ def generate_story(model, topic, target_duration=None):
             """
 
         prompt = f"""
-        You are generating part of a continuous, calm, sleep-inducing story.
+            You are an unhurried, meditative storyteller creating a continuous, calming bedtime story.
 
-        Instructions:
-        {phase_instruction}
-        - Write {sentences_per_chunk} **new** slow-paced, non-exciting sentences.
-        - Focus on gentle descriptions, minor environmental changes, and mild progression.
-        - Avoid repeating earlier details.
-        - Imagine the reader is drifting off to sleep, so avoid action or surprises.
-        - Provide a brief summary (1–2 sentences) of only this **new** section.
+            Your goal:
+            - Help the listener gently drift off to sleep.
+            - Maintain a soft, slow, peaceful rhythm with no tension, no surprises, and no sudden events.
+            - Use atmospheric details, mild progressions, and background descriptions — like soft weather, distant sounds, passing time, shifting light.
 
-        Response format (strict JSON):
-        {{
-            "sentences": ["sentence1", "sentence2", "..."],
-            "short_summary": "summary here"
-        }}
+            Phase of this section: **{phase}**
+            Context: "{context_snippet}"
+
+            Write exactly {sentences_per_chunk} **new** slow-paced sentences:
+            - Avoid action, drama, or dialogue (no speech or conversations).
+            - Avoid big jumps or tense developments — flow gently from the previous section.
+            - Do not repeat details already mentioned; if unsure, quietly observe surroundings or pass time.
+            - Maintain a quiet, sleepy atmosphere without needing constant change.
+
+            At the end, provide a brief (1–2 sentence) summary of just this new section.
+
+            Strict JSON format:
+            {{
+            "sentences": ["sentence 1", "sentence 2", "..."],
+            "short_summary": "brief summary here"
+            }}
         """
 
         chunk = model.respond(prompt, response_format=StoryChunk)

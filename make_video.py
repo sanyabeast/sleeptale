@@ -184,13 +184,13 @@ def get_random_background_music():
     
     return random.choice(music_files)
 
-def create_video_from_story(story_name, output_path=None, quality=1.0, force=False):
+def create_video_from_story(story_name, output_path=None, quality=1080, force=False):
     """Create a video for a specific story by combining voice lines with background video and music.
     
     Args:
         story_name: Name of the story (without extension)
         output_path: Path to save the output video (default: output/videos/{story_name}.mp4)
-        quality: Quality factor for the video resolution (1.0 = full resolution, 0.5 = half resolution)
+        quality: Target video height (e.g., 720 for 720p, 1080 for 1080p)
         force: Whether to force regeneration even if the video already exists
         
     Returns:
@@ -264,10 +264,9 @@ def create_video_from_story(story_name, output_path=None, quality=1.0, force=Fal
     else:
         log(f"Using background music: {os.path.basename(music_file)}", "🌻")
     
-    # Set the target resolution based on quality factor
-    base_width, base_height = 1920, 1080  # Base resolution (1080p)
-    target_width = int(base_width * quality)
-    target_height = int(base_height * quality)
+    # Calculate target resolution based on desired height while maintaining 16:9 aspect ratio
+    target_height = quality  # e.g., 720, 1080
+    target_width = int(target_height * 16 / 9)  # maintain 16:9 aspect ratio
     target_resolution = (target_width, target_height)
     
     log(f"Target resolution: {target_width}x{target_height}", "📺")
@@ -337,7 +336,7 @@ def parse_args():
     
     parser.add_argument("-s", "--story", help="Process only the specified story (filename without extension)")
     parser.add_argument("-f", "--force", action="store_true", help="Force regeneration even for existing videos")
-    parser.add_argument("-q", "--quality", type=float, default=1.0, help="Quality factor for video resolution (1.0 = 1080p, 0.5 = 540p)")
+    parser.add_argument("-q", "--quality", type=int, default=1080, help="Video quality as frame height (e.g., 720 for 720p, 1080 for 1080p)")
     
     return parser.parse_args()
 
@@ -355,6 +354,14 @@ def main():
     
     args = parse_args()
     
+    # Validate quality (common resolutions: 480p, 720p, 1080p, 1440p, 2160p)
+    valid_resolutions = [360, 480, 720, 1080, 1440, 2160]
+    if args.quality <= 0:
+        log("Quality (frame height) must be a positive number", "❌")
+        return 1
+    if args.quality > 2160:
+        log(f"Quality {args.quality}p is unusually high (>2160p)", "⚠️")
+
     # Load configuration
     CONFIG = load_config()
     
