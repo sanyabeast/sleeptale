@@ -59,3 +59,17 @@ video:
   music_volume: 0.55
   # Video resolution (width x height) - used for quality scaling
   resolution: "1920x1080"
+  # Video encoding settings
+  encoding:
+    # Video codec (e.g., libx264, hevc_nvenc for NVIDIA GPU acceleration)
+    video_codec: "libx264"
+    # Video bitrate
+    video_bitrate: "8M"
+    # Audio codec
+    audio_codec: "aac"
+    # Audio bitrate
+    audio_bitrate: "192k"
+    # Frames per second
+    fps: 30
+    # Number of threads to use for encoding (0 = auto)
+    threads: 0

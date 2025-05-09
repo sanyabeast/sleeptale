@@ -318,13 +318,28 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     
     # Write the final video
     log(f"Rendering final video for {story_name}...", "🎥")
+    
+    # Get encoding settings from config
+    encoding_config = CONFIG.get('video', {}).get('encoding', {})
+    video_codec = encoding_config.get('video_codec', 'libx264')
+    video_bitrate = encoding_config.get('video_bitrate', '4M')
+    audio_codec = encoding_config.get('audio_codec', 'aac')
+    audio_bitrate = encoding_config.get('audio_bitrate', '192k')
+    fps = encoding_config.get('fps', 30)
+    threads = encoding_config.get('threads', 0)
+    
+    log(f"Using codec: {video_codec}, bitrate: {video_bitrate}", "🎬")
+    
     video_with_audio.write_videofile(
         output_path,
-        codec='libx264',
-        audio_codec='aac',
+        codec=video_codec,
+        bitrate=video_bitrate,
+        audio_codec=audio_codec,
+        audio_bitrate=audio_bitrate,
         temp_audiofile=os.path.join(VIDEOS_OUTPUT_DIR, "temp_audio.m4a"),
         remove_temp=True,
-        fps=30
+        fps=fps,
+        threads=threads
     )
     
     log(f"Video created successfully: {output_path}", "✅")
