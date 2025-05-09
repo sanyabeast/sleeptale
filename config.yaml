@@ -32,7 +32,7 @@ story:
   # Number of words to keep as context from previous chunks
   context_size: 200
   # Average duration of each sentence in minutes (e.g., 0.13 = 7.8 seconds)
-  sentence_duration_minutes: 0.125
+  sentence_duration_minutes: 0.1
 
 # Voice Generation Configuration
 voice:
