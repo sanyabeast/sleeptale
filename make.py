@@ -107,7 +107,7 @@ def main():
         print(f"📝 Generating {stories_to_generate} new stories")
         
         # Generate each story
-        for i in range(args.c):
+        for i in range(stories_to_generate):
             print(f"\n📝 Generating story {i+1} of {stories_to_generate}")
             
             # Build arguments for make_story.py
