@@ -40,8 +40,11 @@ voice:
   tts_server: "http://localhost:5001/generate"
   # Voice profile to use
   voice_sample: 
-    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Calm_Dude.mp3"
-    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\ai1-Salli.mp3"
+    # - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Dude.mp3"
+    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Miles.mp3"
+    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Julia.mp3"
+    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Ruby.mp3"
+   
   # Audio normalization settings
   normalization:
     # Target dB level for audio normalization
