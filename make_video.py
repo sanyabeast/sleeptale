@@ -14,6 +14,7 @@ import yaml
 import argparse
 import glob
 import random
+import random
 from pathlib import Path
 import time
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_audioclips, CompositeVideoClip, CompositeAudioClip
@@ -217,9 +218,10 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     # Get delay settings from config
     start_delay = CONFIG.get('video', {}).get('start_delay', 2.0)
     end_delay = CONFIG.get('video', {}).get('end_delay', 10.0)
-    line_delay = CONFIG.get('video', {}).get('line_delay', 1.0)
+    line_delay_min = CONFIG.get('video', {}).get('line_delay_min', 0.65)
+    line_delay_max = CONFIG.get('video', {}).get('line_delay_max', 0.9)
     
-    log(f"Using delays: start={start_delay}s, between lines={line_delay}s, end={end_delay}s", "⏱️")
+    log(f"Using delays: start={start_delay}s, between lines={line_delay_min}-{line_delay_max}s, end={end_delay}s", "⏱️")
     
     # Load all voice line audio clips
     voice_clips = [AudioFileClip(file) for file in voice_files]
@@ -228,15 +230,16 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     from moviepy.audio.AudioClip import AudioClip
     start_silence = AudioClip(make_frame=lambda t: 0, duration=start_delay)
     end_silence = AudioClip(make_frame=lambda t: 0, duration=end_delay)
-    line_silence = AudioClip(make_frame=lambda t: 0, duration=line_delay)
     
-    # Insert silence between voice clips
+    # Insert silence between voice clips with random delays
     clips_with_delays = [start_silence]  # Start with initial delay
     
     for i, clip in enumerate(voice_clips):
         clips_with_delays.append(clip)
-        # Add delay between clips (except after the last one)
+        # Add random delay between clips (except after the last one)
         if i < len(voice_clips) - 1:
+            random_delay = random.uniform(line_delay_min, line_delay_max)
+            line_silence = AudioClip(make_frame=lambda t: 0, duration=random_delay)
             clips_with_delays.append(line_silence)
     
     # Add end delay

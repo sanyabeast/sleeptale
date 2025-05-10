@@ -39,7 +39,9 @@ voice:
   # URL to your TTS server
   tts_server: "http://localhost:5001/generate"
   # Voice profile to use
-  voice_sample: "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Calm_Dude.mp3"
+  voice_sample: 
+    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Calm_Dude.mp3"
+    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\ai1-Salli.mp3"
   # Audio normalization settings
   normalization:
     # Target dB level for audio normalization
@@ -53,8 +55,9 @@ video:
   start_delay: 2.0
   # Delay after voice lines finish (in seconds)
   end_delay: 10.0
-  # Delay between each voice line (in seconds)
-  line_delay: 0.65
+  # Delay range between each voice line (in seconds)
+  line_delay_min: 0.65
+  line_delay_max: 0.9
   # Background music volume (relative to voice lines, 0.0-1.0)
   music_volume: 0.5
   # Video resolution (width x height) - used for quality scaling

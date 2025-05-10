@@ -1,15 +1,18 @@
 import os
-import yaml
-import requests
-import re
-import shutil
-import argparse
-import random
 import sys
+import yaml
+import glob
+import time
+import json
+import random
+import requests
 from pathlib import Path
 import numpy as np
 import librosa
 import soundfile as sf
+import argparse
+import re
+import shutil
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -121,7 +124,7 @@ def preprocess_text_for_tts(text):
     
     return text
 
-def generate_voice_line(text, output_path):
+def generate_voice_line(text, output_path, selected_voice):
     """Generate voice line using TTS server."""
     # Normalize the output path to use forward slashes
     normalized_output_path = normalize_path(output_path)
@@ -137,7 +140,7 @@ def generate_voice_line(text, output_path):
     params = {
         'text': processed_text,
         'path': normalized_output_path,
-        'voice': VOICE_SAMPLE,
+        'voice': selected_voice,
         'emotion': 'Neutral',  # Default emotion
     }
     
@@ -237,6 +240,10 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
     output_dir_path = os.path.join(PROJECT_DIR, "output", VOICE_LINES_DIR, story_name)
     ensure_dir_exists(output_dir_path)
     
+    # Select a random voice for this story
+    selected_voice = random.choice(VOICE_SAMPLE)
+    log(f"Selected voice: {os.path.basename(selected_voice)}", "🎙️")
+    
     # Process each sentence
     completed = 0
     skipped = 0
@@ -258,7 +265,7 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
         log(f"Processing {i:04d}/{total_sentences-1:04d} ({progress_pct:.1f}%): \"{sentence}\"", "🔊")
         
         # Generate voice line
-        if generate_voice_line(sentence, output_path):
+        if generate_voice_line(sentence, output_path, selected_voice):
             log(f"Generated: {output_filename}", "✅")
             completed += 1
             
@@ -309,7 +316,10 @@ def main():
     
     # Voice generation settings
     TTS_SERVER = CONFIG["voice"]["tts_server"]
+    # Get list of voice samples
     VOICE_SAMPLE = CONFIG["voice"]["voice_sample"]
+    if not isinstance(VOICE_SAMPLE, list):
+        VOICE_SAMPLE = [VOICE_SAMPLE]  # Convert single voice to list for backward compatibility
     
     # No rate parameter used - using TTS server default
     
