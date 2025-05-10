@@ -56,7 +56,7 @@ video:
   # Delay between each voice line (in seconds)
   line_delay: 0.65
   # Background music volume (relative to voice lines, 0.0-1.0)
-  music_volume: 0.55
+  music_volume: 0.5
   # Video resolution (width x height) - used for quality scaling
   resolution: "1920x1080"
   # Video encoding settings
