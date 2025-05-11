@@ -300,12 +300,19 @@ def generate_story(model, topic, target_duration=None):
         print(f"⏳ Duration: {total_duration:.1f}/{target_duration} minutes ({(total_duration/target_duration*100):.1f}%)")
         print(f"💾 Intermediate saved")
 
-    return {
+    # Convert intermediate file to final version by removing debug info
+    final_data = {
         'topic_title': topic.title,
         'topic_summary': topic.summary,
         'total_duration': total_duration,
+        'sentence_count': len(all_sentences),
         'sentences': all_sentences
     }
+    
+    # Update the same file one last time without debug info
+    save_story_yaml(final_data, is_intermediate=False, existing_path=story_path)
+    
+    return final_data
 
 def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
     """Save the generated story to a YAML file.
@@ -323,8 +330,8 @@ def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
     safe_title = re.sub(r'[^a-zA-Z0-9]+', '_', topic_title.lower())
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Use existing path for intermediate saves, create new path for final save
-    if is_intermediate and existing_path:
+    # Use existing path if provided, otherwise create new path
+    if existing_path:
         file_path = existing_path
     else:
         file_path = os.path.join(STORIES_DIR, f"{safe_title}_{timestamp}.yaml")
@@ -338,13 +345,17 @@ def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
         'sentences': story_data['sentences']
     }
 
-    # Add debug info for intermediate saves
-    if is_intermediate and 'chunks' in story_data:
-        yaml_data['debug'] = {
-            'completion_percentage': story_data.get('completion_percentage', 0),
-            'phase': story_data.get('phase', ''),
-            'cumulative_summary': story_data.get('cumulative_summary', '')
-        }
+    # Add debug info for intermediate saves, remove it for final save
+    if is_intermediate:
+        if 'chunks' in story_data:
+            yaml_data['debug'] = {
+                'completion_percentage': story_data.get('completion_percentage', 0),
+                'phase': story_data.get('phase', ''),
+                'cumulative_summary': story_data.get('cumulative_summary', '')
+            }
+    else:
+        # Remove debug info for final save
+        yaml_data.pop('debug', None)
 
     # Save to YAML
     with open(file_path, 'w', encoding='utf-8') as f:
@@ -412,11 +423,8 @@ def main():
             topic = random.choice(topics)
             print(f"🎯 Selected topic: {topic.title} - {topic.summary}")
         
-        # Generate the story
+        # Generate the story - this will create and update a single YAML file
         story_data = generate_story(model, topic, target_duration)
-        
-        # Save the story to a YAML file
-        story_path = save_story_yaml(story_data)
         
         print(f"✅ Generated story with {len(story_data['sentences'])} sentences, total ~{story_data['total_duration']} minutes")
         
