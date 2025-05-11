@@ -22,8 +22,8 @@ It combines:
 - **Smart Story Generation**  
   Uses LLM to generate calming stories with consistent duration estimation (approximately 1.2 minutes per sentence).
 
-- **Dynamic Topic Generation**  
-  Automatically generates calming, sleep-inducing topics with both titles and detailed summaries.
+- **Enhanced Topic Generation**  
+  Intelligently generates diverse, calming topics across multiple categories (natural environments, everyday routines, dreamlike places, etc.) while avoiding repetition with recently used stories.
 
 - **Duration Control**  
   Specify target duration in minutes (e.g., `-d 10`) and number of stories to generate (e.g., `-c 2`).

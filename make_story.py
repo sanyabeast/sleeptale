@@ -87,47 +87,96 @@ def initialize_model(model_name=None, seed=None):
         print("💡 Hint: Make sure LM Studio is running and the model is loaded.")
         return None
 
-def generate_topics(model):
-    """Generate a list of diverse but calming story topics using the LLM.
+def get_recent_stories(num_stories=10):
+    """Get titles of recently generated stories.
     
     Args:
-        model: The initialized LLM model
+        num_stories: Number of recent stories to retrieve
+        
+    Returns:
+        List of story titles
+    """
+    story_files = sorted(
+        Path(STORIES_DIR).glob('*.yaml'),
+        key=lambda x: x.stat().st_mtime,
+        reverse=True
+    )[:num_stories]
     
+    titles = []
+    for story_file in story_files:
+        try:
+            with open(story_file, 'r', encoding='utf-8') as f:
+                story_data = yaml.safe_load(f)
+                if story_data and 'title' in story_data:
+                    titles.append(story_data['title'])
+        except Exception as e:
+            print(f"⚠️ Warning: Could not read title from {story_file}: {e}")
+    
+    return titles
+
+def generate_topics(model):
+    """Generate a list of diverse but calming story topics using the LLM.
+
+    Args:
+        model: The initialized LLM model
+
     Returns:
         List of generated topics
     """
+    # Get recent story titles to avoid similar topics
+    recent_titles = get_recent_stories(10)
+    recent_titles_str = '\n'.join([f'            • "{title}"' for title in recent_titles])
+
     response = model.respond(
-        """
-        You are a creative assistant helping to generate bedtime story topics.
+        f"""
+        You are a creative assistant generating calming, sleep-friendly story topics
+        for a bedtime channel focused on gentle atmospheres and peaceful storytelling.
 
-        Task:
-        - Provide exactly 5 calm, slow-paced, sleep-friendly topics suitable for long, monotonous stories.
-        - Include a gentle variety across settings: natural scenes, everyday routines, historical events, old objects, or imaginary calm places.
-        - Avoid topics that are dramatic, violent, thrilling, or emotionally intense.
-        - Each topic must include:
-            • A short, poetic or slightly abstract title (2–6 words).
-            • A one-sentence summary describing the type of story that could be told.
-        - Example topics:
-            • "The Journey of a River": Following the path of a river from its mountain source to the sea.
-            • "Old Books on a Shelf": Exploring the quiet lives and histories of forgotten books.
-            • "Moonlight Across Fields": A slow night walk under the moon in the countryside.
-            • "The Village Bell Tower": Telling the quiet history of an old bell and the village it watches over.
-            • "A Cat’s Afternoon Nap": Following the slow, dreamy thoughts of a cat drifting in and out of sleep.
+        🎯 Goal:
+        - Create 5 unique story topics suitable for slow, meditative, and slightly monotonous storytelling.
+        - Topics should help the listener **relax**, **unwind**, and eventually **fall asleep**.
 
-        Format response strictly as JSON:
-        {
+        💡 Include a rich variety of settings, such as:
+        - Natural environments (forests, rivers, fields)
+        - Everyday routines (cleaning, sorting, walking)
+        - Dreamlike imaginary places (cloud villages, infinite libraries)
+        - Slightly magical or surreal ideas (cosmic gardens, antique moonlight clocks)
+        - Celestial or cosmic themes (moon stations, drifting satellites, planetwatchers)
+
+        ❌ Avoid:
+        - Anything emotionally intense, adventurous, scary, violent, or dramatic.
+        - Real conflict, plot twists, or excitement.
+
+        ✅ Each topic should contain:
+        - A short, poetic or abstract title (2–6 words)
+        - A single sentence summary describing what kind of story might be told
+
+        🔒 Recently used topics (avoid similar ones):
+        {recent_titles_str if recent_titles else '(No recent stories)'}
+
+        🧪 Example topics:
+        - "The Journey of a River": Following the path of a river from its mountain source to the sea.
+        - "Old Books on a Shelf": Exploring the quiet lives and histories of forgotten books.
+        - "Moonlight Across Fields": A slow night walk under the moon in the countryside.
+        - "The Village Bell Tower": Telling the quiet history of an old bell and the village it watches over.
+        - "A Cat’s Afternoon Nap": Following the dreamy thoughts of a cat drifting in and out of sleep.
+        - "Drift of the Starships": Following an abandoned observatory ship as it drifts through forgotten space.
+        - "Sorting Glass in the Attic": Quietly exploring an attic full of faded light and long-lost objects.
+
+        📦 Format response strictly as JSON:
+        {{
           "topics": [
-            { "title": "topic1", "summary": "summary1" },
-            { "title": "topic2", "summary": "summary2" },
-            { "title": "topic3", "summary": "summary3" },
-            { "title": "topic4", "summary": "summary4" },
-            { "title": "topic5", "summary": "summary5" }
+            {{ "title": "topic1", "summary": "summary1" }},
+            {{ "title": "topic2", "summary": "summary2" }},
+            {{ "title": "topic3", "summary": "summary3" }},
+            {{ "title": "topic4", "summary": "summary4" }},
+            {{ "title": "topic5", "summary": "summary5" }}
           ]
-        }
+        }}
         """,
         response_format=Topics
     )
-    
+
     topics = [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
     return topics
 
@@ -187,30 +236,36 @@ def generate_story(model, topic, target_duration=None):
             """
 
         prompt = f"""
-            You are an unhurried, meditative storyteller creating a continuous, calming bedtime story.
+            You are a quiet, meditative storyteller guiding a bedtime story.
 
-            Your goal:
-            - Help the listener gently drift off to sleep.
-            - Maintain a soft, slow, peaceful rhythm with no tension, no surprises, and no sudden events.
-            - Use atmospheric details, mild progressions, and background descriptions — like soft weather, distant sounds, passing time, shifting light.
+            🎯 Your purpose:
+            - Gently help the listener fall asleep with a slow, repetitive, dreamlike narrative.
+            - Maintain calm, softness, and low energy throughout.
 
-            Phase of this section: **{phase}**
-            Context: "{context_snippet}"
+            📖 Style guidelines:
+            - Use peaceful imagery: changing light, soft weather, distant sounds, steady rhythms.
+            - You may gently introduce **passive or minimal characters** (e.g., a person walking slowly, a cat watching shadows, a keeper tending a lamp), but they must not speak or do anything dramatic.
+            - Keep pacing **slow** — time should feel like it's stretching or looping.
+            - Prefer sensations, textures, cycles, routines, background motion over action.
+            - Characters (if used) must blend into the world like a shadow, not draw attention.
 
-            Write exactly {sentences_per_chunk} **new** slow-paced sentences:
-            - Avoid action, drama, or dialogue (no speech or conversations).
-            - Avoid big jumps or tense developments — flow gently from the previous section.
-            - Do not repeat details already mentioned; if unsure, quietly observe surroundings or pass time.
-            - Maintain a quiet, sleepy atmosphere without needing constant change.
+            Phase: **{phase}**
+            Context for continuation: "{context_snippet}"
 
-            At the end, provide a brief (1–2 sentence) summary of just this new section.
+            ✍️ Write exactly {sentences_per_chunk} **new** sentences:
+            - Keep all sentences slow-paced and descriptive.
+            - Avoid any plot, suspense, danger, or conversations.
+            - Let nature, time, or ritual actions carry the story forward.
 
-            Strict JSON format:
+            📦 At the end, return a 1–2 sentence summary of this new segment.
+
+            Respond strictly in this JSON format:
             {{
-            "sentences": ["sentence 1", "sentence 2", "..."],
-            "short_summary": "brief summary here"
+              "sentences": ["sentence 1", "sentence 2", "..."],
+              "short_summary": "brief summary here"
             }}
         """
+
 
         chunk = model.respond(prompt, response_format=StoryChunk)
         

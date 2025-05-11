@@ -274,8 +274,9 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     
     log(f"Target resolution: {target_width}x{target_height}", "📺")
     
-    # Load the background video
-    background_clip = VideoFileClip(background_path)
+    # Load the background video without audio
+    background_clip = VideoFileClip(background_path, audio=False)
+    log("Loading background video without audio", "🔇")
     
     # Loop the background video if it's shorter than the audio
     if background_clip.duration < audio_duration:
