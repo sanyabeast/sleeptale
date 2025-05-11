@@ -183,16 +183,7 @@ def generate_topics(model):
     return topics
 
 def generate_story(model, topic, target_duration=None):
-    """Generate a long story by iteratively querying the LLM.
-    
-    Args:
-        model: The LLM model to use
-        topic: The topic object with title and summary
-        target_duration: Target duration in minutes
-        
-    Returns:
-        Dictionary containing the generated story data
-    """
+    """Generate a long story by iteratively querying the LLM."""
     if target_duration is None:
         target_duration = CONFIG.get('story', {}).get('target_duration_minutes', 60)
 
@@ -206,81 +197,93 @@ def generate_story(model, topic, target_duration=None):
     print(f"📝 Topic summary: {topic.summary}")
     print(f"⏱️ Target duration: {target_duration} minutes")
 
+    # Create the output path early to use it for intermediate saves
+    story_path = save_story_yaml({
+        'topic_title': topic.title,
+        'topic_summary': topic.summary,
+        'total_duration': 0,
+        'sentences': []
+    }, is_intermediate=True)
+
     while total_duration < target_duration:
-        # Calculate if we are starting, continuing, or finishing
         remaining_time = target_duration - total_duration
         phase = (
             "start" if total_duration == 0 else
-            "finish" if remaining_time <= 5 else  # within last 5 minutes, wrap up
+            "finish" if remaining_time <= 5 else
             "continue"
         )
 
-        # Build context
         last_sentences = all_sentences[-5:] if len(all_sentences) >= 5 else all_sentences
-        context_snippet = " ".join(last_sentences) or cumulative_summary or topic.summary
+        context_snippet = " ".join(last_sentences).strip() or topic.summary
+        last_summary = chunks[-1]['short_summary'] if chunks else topic.summary
 
-        # Build phase-specific instruction
         if phase == "start":
             phase_instruction = f"""
-            Begin a gentle, sleep-inducing story about {topic.title}. Use this summary as a guide: {topic.summary}. Set the scene slowly, without jumping into events.
-            Focus on calm atmosphere and subtle environmental details.
+            Begin a gentle, sleep-inducing story about {topic.title}. Use this summary as a guide: {topic.summary}.
+            Set the scene slowly, without jumping into events. Focus on atmosphere and calm visual rhythm.
             """
         elif phase == "continue":
             phase_instruction = f"""
-            Continue where the story left off, using the following context: "{context_snippet}".
-            Progress the atmosphere and details gently, without rushing or repeating.
+            Continue the story softly from here: "{context_snippet}"
+            Summary so far: {last_summary}
+            Maintain tone and flow. Do not shift the scene too much unless gently.
             """
         elif phase == "finish":
             phase_instruction = f"""
-            Conclude the story softly, using the following context: "{context_snippet}".
-            Provide a calm, satisfying wrap-up without abrupt endings or surprises.
-            Let the reader drift off peacefully by the end.
+            Wrap up the story calmly. Use this context: "{context_snippet}"
+            Final summary: {last_summary}
+            Finish slowly, no tension, just gradual fading out.
             """
 
         prompt = f"""
-            You are a quiet, meditative storyteller guiding a bedtime story.
+        You are a meditative storyteller crafting a continuous bedtime story.
 
-            🎯 Your purpose:
-            - Gently help the listener fall asleep with a slow, repetitive, dreamlike narrative.
-            - Maintain calm, softness, and low energy throughout.
+        🎯 Objective:
+        - Help the listener relax and drift to sleep.
+        - Use calming imagery and peaceful rhythm.
+        - Keep the story thematically consistent: revisit or echo the imagery introduced earlier.
 
-            📖 Style guidelines:
-            - Use peaceful imagery: changing light, soft weather, distant sounds, steady rhythms.
-            - You may gently introduce **passive or minimal characters** (e.g., a person walking slowly, a cat watching shadows, a keeper tending a lamp), but they must not speak or do anything dramatic.
-            - Keep pacing **slow** — time should feel like it's stretching or looping.
-            - Prefer sensations, textures, cycles, routines, background motion over action.
-            - Characters (if used) must blend into the world like a shadow, not draw attention.
+        📖 Style:
+        - Use gentle nature, time cycles, light, distant sounds, passive characters (e.g., someone sweeping, feeding fish).
+        - Characters (if present) must never speak or take active roles.
+        - No action, no suspense, no drama, no conversations.
 
-            Phase: **{phase}**
-            Context for continuation: "{context_snippet}"
+        Phase: **{phase}**
+        Context: "{context_snippet}"
+        Thematic summary: "{last_summary}"
 
-            ✍️ Write exactly {sentences_per_chunk} **new** sentences:
-            - Keep all sentences slow-paced and descriptive.
-            - Avoid any plot, suspense, danger, or conversations.
-            - Let nature, time, or ritual actions carry the story forward.
+        ✍️ Write exactly {sentences_per_chunk} new slow, descriptive sentences.
+        At the end, return a 1–2 sentence summary of this chunk only.
 
-            📦 At the end, return a 1–2 sentence summary of this new segment.
-
-            Respond strictly in this JSON format:
-            {{
-              "sentences": ["sentence 1", "sentence 2", "..."],
-              "short_summary": "brief summary here"
-            }}
+        Respond strictly in JSON:
+        {{
+            "sentences": ["sentence 1", "sentence 2", "..."],
+            "short_summary": "summary here"
+        }}
         """
 
-
         chunk = model.respond(prompt, response_format=StoryChunk)
-        
-        # Calculate duration based on configured sentence duration
-        sentence_duration = CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
-        chunk_duration = len(chunk.parsed["sentences"]) * sentence_duration
-        
-        chunks.append(chunk.parsed)
-        cumulative_summary += " " + chunk.parsed["short_summary"]
-        total_duration += chunk_duration
-        all_sentences.extend(chunk.parsed["sentences"])
+        if not isinstance(chunk.parsed, dict) or 'sentences' not in chunk.parsed:
+            print(f"❌ Invalid response from model: {chunk.parsed}")
+            continue
 
-        # Save intermediate state
+        sentences = [s for s in chunk.parsed['sentences'] if isinstance(s, str) and s != 'short_summary']
+        if not sentences:
+            print(f"❌ No valid sentences in response")
+            continue
+
+        sentence_duration = CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
+        chunk_duration = len(sentences) * sentence_duration
+
+        chunks.append({
+            'sentences': sentences,
+            'short_summary': chunk.parsed.get('short_summary', '')
+        })
+        total_duration += chunk_duration
+        cumulative_summary += " " + chunk.parsed.get("short_summary", "")
+        all_sentences.extend(sentences)
+
+        # Intermediate save
         intermediate_data = {
             'topic_title': topic.title,
             'topic_summary': topic.summary,
@@ -288,14 +291,14 @@ def generate_story(model, topic, target_duration=None):
             'sentences': all_sentences,
             'chunks': chunks,
             'cumulative_summary': cumulative_summary,
-            'completion_percentage': (total_duration/target_duration*100),
+            'completion_percentage': (total_duration / target_duration * 100),
             'phase': phase
         }
-        story_path = save_story_yaml(intermediate_data, is_intermediate=True, existing_path=story_path if 'story_path' in locals() else None)
+        save_story_yaml(intermediate_data, is_intermediate=True, existing_path=story_path)
 
-        print(f"🧩 Preview: {chunk.parsed['sentences'][0]}")
-        print(f"⏳ Current total duration: {total_duration}/{target_duration} minutes ({(total_duration/target_duration*100):.1f}%)")
-        print(f"💾 Updated story state")
+        print(f"🧩 Preview: {sentences[0]}")
+        print(f"⏳ Duration: {total_duration:.1f}/{target_duration} minutes ({(total_duration/target_duration*100):.1f}%)")
+        print(f"💾 Intermediate saved")
 
     return {
         'topic_title': topic.title,
