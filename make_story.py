@@ -7,6 +7,8 @@ import os
 import sys
 import time
 from pathlib import Path
+import re
+from datetime import datetime
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -278,8 +280,22 @@ def generate_story(model, topic, target_duration=None):
         total_duration += chunk_duration
         all_sentences.extend(chunk.parsed["sentences"])
 
+        # Save intermediate state
+        intermediate_data = {
+            'topic_title': topic.title,
+            'topic_summary': topic.summary,
+            'total_duration': total_duration,
+            'sentences': all_sentences,
+            'chunks': chunks,
+            'cumulative_summary': cumulative_summary,
+            'completion_percentage': (total_duration/target_duration*100),
+            'phase': phase
+        }
+        story_path = save_story_yaml(intermediate_data, is_intermediate=True, existing_path=story_path if 'story_path' in locals() else None)
+
         print(f"🧩 Preview: {chunk.parsed['sentences'][0]}")
         print(f"⏳ Current total duration: {total_duration}/{target_duration} minutes ({(total_duration/target_duration*100):.1f}%)")
+        print(f"💾 Updated story state")
 
     return {
         'topic_title': topic.title,
@@ -288,30 +304,29 @@ def generate_story(model, topic, target_duration=None):
         'sentences': all_sentences
     }
 
-def save_story_yaml(story_data):
+def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
     """Save the generated story to a YAML file.
     
     Args:
         story_data: Dictionary containing the story data
+        is_intermediate: If True, updates the existing file instead of creating a new one
+        existing_path: Path to an existing file to update
     
     Returns:
         Path to the saved story file
     """
     # Create a filename based on the topic title
     topic_title = story_data['topic_title']
-    safe_topic = "".join(c if c.isalnum() or c in " _-" else "_" for c in topic_title)
-    safe_topic = safe_topic.replace(" ", "_").lower()
+    safe_title = re.sub(r'[^a-zA-Z0-9]+', '_', topic_title.lower())
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Truncate if too long
-    if len(safe_topic) > 50:
-        safe_topic = safe_topic[:50]
-    
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"{safe_topic}_{timestamp}.yaml"
-    
-    file_path = os.path.join(STORIES_DIR, filename)
-    
-    # Convert story data to a format suitable for YAML
+    # Use existing path for intermediate saves, create new path for final save
+    if is_intermediate and existing_path:
+        file_path = existing_path
+    else:
+        file_path = os.path.join(STORIES_DIR, f"{safe_title}_{timestamp}.yaml")
+
+    # Prepare data for YAML - keep the same structure as original
     yaml_data = {
         'topic_title': story_data['topic_title'],
         'topic_summary': story_data['topic_summary'],
@@ -319,11 +334,22 @@ def save_story_yaml(story_data):
         'sentence_count': len(story_data['sentences']),
         'sentences': story_data['sentences']
     }
-    
+
+    # Add debug info for intermediate saves
+    if is_intermediate and 'chunks' in story_data:
+        yaml_data['debug'] = {
+            'completion_percentage': story_data.get('completion_percentage', 0),
+            'phase': story_data.get('phase', ''),
+            'cumulative_summary': story_data.get('cumulative_summary', '')
+        }
+
+    # Save to YAML
     with open(file_path, 'w', encoding='utf-8') as f:
         yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    if not is_intermediate:
+        print(f"💾 Story saved to: {file_path}")
     
-    print(f"💾 Story saved to: {file_path}")
     return file_path
 
 def parse_args():
@@ -332,8 +358,11 @@ def parse_args():
     
     parser.add_argument("-t", "--topic", help="Story topic to use")
     parser.add_argument("-d", "--duration", type=int, help="Target duration in minutes")
-    parser.add_argument("-m", "--model", help="Model to use (overrides config)")
+    parser.add_argument("-c", "--count", type=int, default=1, help="Number of stories to generate")
+    parser.add_argument("-m", "--model", help="Model name or URL of the LM Studio API")
     parser.add_argument("-s", "--seed", type=int, help="Random seed for reproducibility")
+    parser.add_argument("--length", choices=['short', 'medium', 'long'], default='medium',
+                        help="Story length preset (affects pacing and detail level)")
     
     return parser.parse_args()
 
@@ -351,6 +380,10 @@ def main():
     
     # Initialize the model
     model_name = args.model or CONFIG.get('story', {}).get('model')
+    if not model_name:
+        print("❌ No model specified. Use -m/--model or set 'model' in config.yaml")
+        return 1
+
     seed = args.seed or CONFIG.get('llm', {}).get('seed')
     model = initialize_model(model_name, seed)
     
