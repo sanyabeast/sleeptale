@@ -42,6 +42,8 @@ voice:
   voice_sample: 
     - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Dude.mp3"
     - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Ruby.mp3"
+  # Number of sentences to combine into a single voice line
+  sentences_per_voice_line: 1
    
   # Audio normalization settings
   normalization:

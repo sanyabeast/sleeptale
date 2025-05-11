@@ -110,17 +110,40 @@ def preprocess_text_for_tts(text):
     if not text:
         return text
     
-    # 1. Remove all double quotes
-    text = text.replace('"', "")
+    # 1. Convert to string if not already
+    text = str(text)
     
-    # 2. Replace three-dots (ellipsis) with a single dot
-    text = text.replace("...", ".").replace(". . .", ".")
+    # 2. Replace various quote types with nothing
+    text = text.replace('"', '').replace('\u201c', '').replace('\u201d', '').replace('\u2018', '').replace('\u2019', '')
     
-    # 3. Remove the word "ugh" (case insensitive)
-    text = re.sub(r'\bugh\b', '', text, flags=re.IGNORECASE)
+    # 3. Replace ellipsis variations with a single dot
+    text = text.replace('...', '.').replace('. . .', '.').replace('\u2026', '.')
     
-    # Remove any double spaces created by the replacements
-    text = re.sub(r'\s+', ' ', text).strip()
+    # 4. Replace multiple dots with a single dot
+    text = re.sub(r'\.{2,}', '.', text)
+    
+    # 5. Remove problematic words (case insensitive)
+    problem_words = ['ugh']
+    for word in problem_words:
+        text = re.sub(rf'\b{word}\b', '', text, flags=re.IGNORECASE)
+    
+    # 6. Clean up whitespace
+    # - Replace newlines and tabs with spaces
+    text = text.replace('\n', ' ').replace('\t', ' ').replace('\r', ' ')
+    # - Replace multiple spaces with a single space
+    text = re.sub(r'\s+', ' ', text)
+    # - Remove leading/trailing whitespace
+    text = text.strip()
+    
+    # 7. Ensure proper spacing after punctuation
+    text = re.sub(r'([.,!?])([^\s])', r'\1 \2', text)
+    
+    # 8. Remove any empty parentheses
+    text = re.sub(r'\(\s*\)', '', text)
+    
+    # 9. Ensure the text ends with proper punctuation
+    if text and not text[-1] in '.!?':
+        text += '.'
     
     return text
 
@@ -244,30 +267,48 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
     selected_voice = random.choice(VOICE_SAMPLE)
     log(f"Selected voice: {os.path.basename(selected_voice)}", "🎙️")
     
-    # Process each sentence
+    # Get number of sentences per voice line from config
+    sentences_per_line = CONFIG.get("voice", {}).get("sentences_per_voice_line", 1)
+    
+    # Process sentences in groups
     completed = 0
     skipped = 0
-    for i, sentence in enumerate(story['sentences']):
-        # Create output filename with zero-padded index
-        output_filename = f"{i:04d}.wav"
+    sentences = story['sentences']
+    total_groups = (total_sentences + sentences_per_line - 1) // sentences_per_line
+    
+    for group_idx in range(total_groups):
+        # Get sentences for this group
+        start_idx = group_idx * sentences_per_line
+        end_idx = min(start_idx + sentences_per_line, total_sentences)
+        group_sentences = sentences[start_idx:end_idx]
         
-        # Create absolute output path
+        # Create output filename with zero-padded index
+        output_filename = f"{start_idx:04d}.wav"
         output_path = os.path.join(output_dir_path, output_filename)
         
-        # Check if the file already exists and skip if not forcing regeneration
+        # Check if the file already exists
         if os.path.exists(output_path) and not force_regenerate:
-            log(f"Skipping sentence {i:04d}/{total_sentences-1:04d}: File already exists", "⏩")
-            skipped += 1
+            log(f"Skipping group {group_idx+1}/{total_groups}: File already exists", "⏩")
+            skipped += len(group_sentences)
             continue
         
         # Show progress percentage
-        progress_pct = (i / total_sentences) * 100
-        log(f"Processing {i:04d}/{total_sentences-1:04d} ({progress_pct:.1f}%): \"{sentence}\"", "🔊")
+        progress_pct = (start_idx / total_sentences) * 100
         
-        # Generate voice line
-        if generate_voice_line(sentence, output_path, selected_voice):
+        # Clean each sentence individually first
+        cleaned_sentences = [preprocess_text_for_tts(s) for s in group_sentences]
+        
+        # Combine sentences and ensure proper spacing
+        combined_text = ' '.join(s.strip() for s in cleaned_sentences if s.strip())
+        combined_text = preprocess_text_for_tts(combined_text)  # One final cleanup
+        
+        log(f"Processing group {group_idx+1}/{total_groups} ({progress_pct:.1f}%):", "🔊")
+        log(f"Text: \"{combined_text}\"", "📝")
+        
+        # Generate voice line for combined sentences
+        if generate_voice_line(combined_text, output_path, selected_voice):
             log(f"Generated: {output_filename}", "✅")
-            completed += 1
+            completed += len(group_sentences)
             
             # Normalize audio if enabled
             if normalization_enabled and os.path.exists(output_path):
