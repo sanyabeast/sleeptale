@@ -371,10 +371,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate a long, monotonous story using an LLM")
     
     parser.add_argument("-t", "--topic", help="Story topic to use")
+    parser.add_argument("-s", "--summary", help="Custom summary for the story (only used with --topic)")
     parser.add_argument("-d", "--duration", type=int, help="Target duration in minutes")
     parser.add_argument("-c", "--count", type=int, default=1, help="Number of stories to generate")
     parser.add_argument("-m", "--model", help="Model name or URL of the LM Studio API")
-    parser.add_argument("-s", "--seed", type=int, help="Random seed for reproducibility")
+    parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
     parser.add_argument("--length", choices=['short', 'medium', 'long'], default='medium',
                         help="Story length preset (affects pacing and detail level)")
     
@@ -412,8 +413,13 @@ def main():
         # If topic is provided, use it; otherwise generate topics and select one
         if args.topic:
             # Create a Topic object from the provided string
-            topic = Topic(title=args.topic, summary=f"A calming story about {args.topic}")
+            if args.summary:
+                summary = args.summary
+            else:
+                summary = f"A calming story about {args.topic}"
+            topic = Topic(title=args.topic, summary=summary)
             print(f"🎯 Using provided topic: {topic.title}")
+            print(f"📝 Using summary: {topic.summary}")
         else:
             # Generate topics and select one
             topics = generate_topics(model)

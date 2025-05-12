@@ -32,7 +32,7 @@ story:
   # Number of words to keep as context from previous chunks
   context_size: 200
   # Average duration of each sentence in minutes (e.g., 0.13 = 7.8 seconds)
-  sentence_duration_minutes: 0.1
+  sentence_duration_minutes: 0.14
 
 # Voice Generation Configuration
 voice:
@@ -44,18 +44,29 @@ voice:
     - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Ruby.mp3"
   # Number of sentences to combine into a single voice line
   sentences_per_voice_line: 1
-   
   # Audio normalization settings
   normalization:
     # Target dB level for audio normalization
-    target_db: -21.0
+    target_db: -20.0
     # Whether to automatically normalize generated audio
     enabled: true
+  # Tempo manipulation settings
+  tempo:
+    enabled: true  # Set to true to enable
+    factor: 0.9     # < 1.0 slows down, > 1.0 speeds up
+  # Echo effect settings
+  echo:
+    enabled: true  # Set to true to enable
+    delay: 0.1      # Delay in seconds
+    decay: 0.05      # Echo volume decay (0-1)
+  # Rubberband configuration for high-quality tempo manipulation
+  rubberband:
+    path: "C:\\Dev\\rubberband-4.0.0-gpl-executable-windows\\rubberband.exe"  # Path to rubberband executable
 
 # Video Generation Configuration
 video:
   # Delay before voice lines start playing (in seconds)
-  start_delay: 2.0
+  start_delay: 5.0
   # Delay after voice lines finish (in seconds)
   end_delay: 10.0
   # Delay range between each voice line (in seconds)

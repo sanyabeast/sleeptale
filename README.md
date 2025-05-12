@@ -208,16 +208,22 @@ Each script will use `configs/sample.yaml` by default, or you can specify a diff
 - `--skip-video`: Skip video generation step
 
 #### Story Generation (make_story.py)
-- `-c, --config`: Path to config file (default: configs/sample.yaml)
 - `-t, --topic`: Override story topic
+- `-s, --summary`: Custom summary for the story (only used with --topic)
 - `-d, --duration`: Override target duration in minutes
+- `-c, --count`: Number of stories to generate
 - `-m, --model`: Override LLM model
-- `-s, --seed`: Set random seed for reproducibility
+- `--seed`: Set random seed for reproducibility
+- `--length`: Story length preset (short, medium, long)
 
-#### Audio Generation (make_audio.py)
-- `-c, --config`: Path to config file (default: configs/sample.yaml)
-- `-s, --story`: Path to specific story file (otherwise uses latest)
-- `-f, --force`: Force regeneration even if audio exists
+#### Voice Generation (make_voice_lines.py)
+- `-s, --story`: Process only the specified story file
+- `-v, --voice`: Force the use of a specific voice sample by index (0, 1, 2, etc.)
+- `--clean`: Remove all existing voice lines before generation
+- `--force`: Force regeneration of voice lines even if they already exist
+- `--normalize`: Force audio normalization even if disabled in config
+- `--no-normalize`: Disable audio normalization even if enabled in config
+- `--target-db`: Target dB level for audio normalization (overrides config)
 
 #### Video Generation (make_video.py)
 - `-c, --config`: Path to config file (default: configs/sample.yaml)
@@ -230,9 +236,9 @@ Each script will use `configs/sample.yaml` by default, or you can specify a diff
 
 ### Complete Workflow
 
-1. **Generate a story with a custom topic**:
+1. **Generate a story with a custom topic and summary**:
    ```bash
-   python make_story.py -t "floating on a calm ocean under a starry night sky" -d 30
+   python make_story.py -t "floating on a calm ocean under a starry night sky" -s "A peaceful journey across gentle waves beneath an infinite cosmos" -d 30
    ```
 
 2. **Generate voice lines for all stories**:
@@ -247,9 +253,9 @@ Each script will use `configs/sample.yaml` by default, or you can specify a diff
 
 ### Processing a Specific Story
 
-1. **Generate voice lines for a specific story**:
+1. **Generate voice lines for a specific story with a specific voice**:
    ```bash
-   python make_voice_lines.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012.yaml
+   python make_voice_lines.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012.yaml -v 1
    ```
 
 2. **Create video for a specific story**:
