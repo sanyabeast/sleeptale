@@ -27,6 +27,9 @@ class Topic(BaseModel):
 
 class Topics(BaseModel):
     topics: list[Topic]
+    
+class ThemeList(BaseModel):
+    themes: list[str]
 
 def load_config():
     """Load configuration from config.yaml file."""
@@ -70,12 +73,15 @@ def initialize_model(model_name=None, seed=None):
     print(f"🤖 Using model: {model_name}")
     
     try:
-        # Use seed only if explicitly provided
+        # Use seed only if explicitly provided, otherwise use timestamp-based seed
         if seed is not None:
-            print(f"🌱 Using seed: {seed}")
+            print(f"🌱 Using provided seed: {seed}")
             seed_value = seed
         else:
-            seed_value = None
+            # Generate a seed based on current timestamp to ensure variety
+            timestamp_seed = int(time.time()) % 100000
+            seed_value = timestamp_seed
+            print(f"🌱 Using timestamp-based seed: {seed_value}")
         
         # Initialize the model with the specified configuration
         model = lms.llm(model_name, config={
@@ -116,203 +122,207 @@ def get_recent_stories(num_stories=10):
     
     return titles
 
-def generate_topics(model):
-    """Generate a list of diverse but calming story topics using the LLM.
-
-    Args:
-        model: The initialized LLM model
-
-    Returns:
-        List of generated topics
-    """
-    # Get recent story titles to avoid similar topics
+def generate_themes(model):
+    """Generate 10 diverse, calming, and visually intuitive themes for sleep stories."""
     recent_titles = get_recent_stories(10)
-    recent_titles_str = '\n'.join([f'            • "{title}"' for title in recent_titles])
+    recent_titles_str = '\n'.join([f'• "{title}"' for title in recent_titles])
 
-    response = model.respond(
-        f"""
-        You are a creative assistant generating calming, sleep-friendly story topics
-        for a bedtime channel focused on gentle atmospheres and peaceful storytelling.
+    prompt = f"""
+    You are a poetic assistant creating diverse, calming storytelling themes
+    for a bedtime story generator.
 
-        🎯 Goal:
-        - Create 5 unique story topics suitable for slow, meditative, and slightly monotonous storytelling.
-        - Topics should help the listener **relax**, **unwind**, and eventually **fall asleep**.
+    🎯 Your task:
+    - Generate exactly 10 unique themes.
+    - Each should inspire peaceful, slow, atmospheric stories.
+    - Make them **visually intuitive** (scenes, objects, moods) and **emotionally neutral**.
+    - Most themes should feel grounded or nature-based, but it's OK to include 1 space-themed or slightly surreal theme.
 
-        💡 Include a rich variety of settings, such as:
-        - Natural environments (forests, rivers, fields)
-        - Everyday routines (cleaning, sorting, walking)
-        - Dreamlike imaginary places (cloud villages, infinite libraries)
-        - Slightly magical or surreal ideas (cosmic gardens, antique moonlight clocks)
-        - Celestial or cosmic themes (moon stations, drifting satellites, planetwatchers)
+    💡 Source inspiration from:
+    - Soft natural environments (meadows, rain, rivers, forests)
+    - Quiet indoor scenes (attics, greenhouses, candlelit rooms)
+    - Gentle weather (fog, snow, dusk light, breeze)
+    - Simple routines (sorting, folding, watering, sweeping)
+    - Passive observers (a cat, a lantern keeper, a gardener)
+    - Rarely: cosmic isolation or slow drifting in space (e.g. “Orbital Window”)
 
-        ❌ Avoid:
-        - Anything emotionally intense, adventurous, scary, violent, or dramatic.
-        - Real conflict, plot twists, or excitement.
+    ❌ Avoid:
+    - Abstract words (e.g., “resonance”, “refraction”, “entropy”)
+    - Intellectual terms or metaphysical jargon
+    - Anything intense, emotional, adventurous, or ominous
 
-        ✅ Each topic should contain:
-        - A short, poetic or abstract title (2–6 words)
-        - A single sentence summary describing what kind of story might be told
+    🔒 Recently used stories (avoid too-similar ones):
+    {recent_titles_str if recent_titles else '(No recent stories)'}
 
-        🔒 Recently used topics (avoid similar ones):
-        {recent_titles_str if recent_titles else '(No recent stories)'}
+    📦 Respond strictly in this JSON format:
+    {{
+      "themes": ["theme1", "theme2", "theme3", "theme4", "theme5", "theme6", "theme7", "theme8", "theme9", "theme10"]
+    }}
+    """
 
-        🧪 Example topics:
-        - "The Journey of a River": Following the path of a river from its mountain source to the sea.
-        - "Old Books on a Shelf": Exploring the quiet lives and histories of forgotten books.
-        - "Moonlight Across Fields": A slow night walk under the moon in the countryside.
-        - "The Village Bell Tower": Telling the quiet history of an old bell and the village it watches over.
-        - "A Cat’s Afternoon Nap": Following the dreamy thoughts of a cat drifting in and out of sleep.
-        - "Drift of the Starships": Following an abandoned observatory ship as it drifts through forgotten space.
-        - "Sorting Glass in the Attic": Quietly exploring an attic full of faded light and long-lost objects.
+    response = model.respond(prompt, response_format=ThemeList)
+    return response.parsed["themes"]
 
-        📦 Format response strictly as JSON:
-        {{
-          "topics": [
-            {{ "title": "topic1", "summary": "summary1" }},
-            {{ "title": "topic2", "summary": "summary2" }},
-            {{ "title": "topic3", "summary": "summary3" }},
-            {{ "title": "topic4", "summary": "summary4" }},
-            {{ "title": "topic5", "summary": "summary5" }}
-          ]
-        }}
-        """,
-        response_format=Topics
-    )
 
-    topics = [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
-    return topics
+def generate_topics_from_theme(model, theme):
+    """Generate 10 grounded, calm story topics for a selected theme."""
+    recent_titles = get_recent_stories(10)
+    recent_titles_str = '\n'.join([f'• "{title}"' for title in recent_titles])
 
-def generate_story(model, topic, target_duration=None):
-    """Generate a long story by iteratively querying the LLM."""
+    prompt = f"""
+    You are a calming creative assistant. Help generate gentle bedtime story topics
+    under the theme: "{theme}".
+
+    🎯 Task:
+    - Suggest 10 story topics that feel peaceful, slow, and easy to visualize.
+    - Focus on simple imagery: calm settings, slow natural rhythms, solitary routines.
+    - Most topics should be grounded — include only 1–2 slightly surreal or cosmic ideas if appropriate to the theme.
+    - Each topic must include a poetic **title** and a 1-sentence **summary**.
+
+    💡 Good elements to use:
+    - A quiet person or animal simply existing (e.g., feeding birds, watching clouds)
+    - Nature moving slowly (e.g., snowfall, moss growing, fog shifting)
+    - Small cozy spaces (e.g., attic, dock, greenhouse)
+    - Soft tools or objects (e.g., a broom, notebook, candle)
+    - Occasional dreamlike touches (e.g., drifting garden in orbit, forgotten telescope)
+
+    ❌ Avoid:
+    - Drama, dialogue, tension, or plot twists
+    - Vague or overly abstract titles like “Temporal Fragments” or “Resonant Thresholds”
+    - Anything hard to imagine or emotionally heavy
+
+    🔒 Recently used topics:
+    {recent_titles_str if recent_titles else '(No recent stories)'}
+
+    📦 Strictly respond in JSON:
+    {{
+      "topics": [
+        {{ "title": "topic1", "summary": "summary1" }},
+        {{ "title": "topic2", "summary": "summary2" }},
+        {{ "title": "topic3", "summary": "summary3" }},
+        {{ "title": "topic4", "summary": "summary4" }},
+        {{ "title": "topic5", "summary": "summary5" }},
+        {{ "title": "topic6", "summary": "summary6" }},
+        {{ "title": "topic7", "summary": "summary7" }},
+        {{ "title": "topic8", "summary": "summary8" }},
+        {{ "title": "topic9", "summary": "summary9" }},
+        {{ "title": "topic10", "summary": "summary10" }}
+      ]
+    }}
+    """
+
+    response = model.respond(prompt, response_format=Topics)
+    return [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
+
+
+def generate_story(model, topic, theme=None, target_duration=None):
+    """Generate a cohesive, slow-paced bedtime story from a given topic."""
     if target_duration is None:
         target_duration = CONFIG.get('story', {}).get('target_duration_minutes', 60)
 
-    chunks = []
+    chunks, all_sentences = [], []
+    total_duration, cumulative_summary = 0, ""
     sentences_per_chunk = 10
-    total_duration = 0
-    all_sentences = []
-    cumulative_summary = ""
 
-    print(f"🛌 Generating story on topic: '{topic.title}'")
-    print(f"📝 Topic summary: {topic.summary}")
-    print(f"⏱️ Target duration: {target_duration} minutes")
+    print(f"🛌 Generating story: {topic.title}")
+    print(f"📝 Summary: {topic.summary}")
+    if theme:
+        print(f"🎨 Theme: {theme}")
+    print(f"⏱️ Target: {target_duration} min")
 
-    # Create the output path early to use it for intermediate saves
+    # Create initial save path
     story_path = save_story_yaml({
         'topic_title': topic.title,
         'topic_summary': topic.summary,
+        'theme': theme,
         'total_duration': 0,
         'sentences': []
     }, is_intermediate=True)
 
     while total_duration < target_duration:
-        remaining_time = target_duration - total_duration
-        phase = (
-            "start" if total_duration == 0 else
-            "finish" if remaining_time <= 5 else
-            "continue"
-        )
-
-        last_sentences = all_sentences[-5:] if len(all_sentences) >= 5 else all_sentences
-        context_snippet = " ".join(last_sentences).strip() or topic.summary
+        remaining = target_duration - total_duration
+        phase = "start" if total_duration == 0 else "finish" if remaining <= 5 else "continue"
+        recent_context = " ".join(all_sentences[-5:]) or topic.summary
         last_summary = chunks[-1]['short_summary'] if chunks else topic.summary
 
-        if phase == "start":
-            phase_instruction = f"""
-            Begin a gentle, sleep-inducing story about {topic.title}. Use this summary as a guide: {topic.summary}.
-            Set the scene slowly, without jumping into events. Focus on atmosphere and calm visual rhythm.
-            """
-        elif phase == "continue":
-            phase_instruction = f"""
-            Continue the story softly from here: "{context_snippet}"
-            Summary so far: {last_summary}
-            Maintain tone and flow. Do not shift the scene too much unless gently.
-            """
-        elif phase == "finish":
-            phase_instruction = f"""
-            Wrap up the story calmly. Use this context: "{context_snippet}"
-            Final summary: {last_summary}
-            Finish slowly, no tension, just gradual fading out.
-            """
-
         prompt = f"""
-        You are a meditative storyteller crafting a continuous bedtime story.
+        You are a poetic narrator writing a bedtime story in quiet, meditative style.
 
         🎯 Objective:
-        - Help the listener relax and drift to sleep.
-        - Use calming imagery and peaceful rhythm.
-        - Keep the story thematically consistent: revisit or echo the imagery introduced earlier.
+        - Calm the listener and lull them toward sleep.
+        - Maintain soft pacing, ambient imagery, gentle rhythm.
+        - Let the story feel timeless, without action or tension.
 
-        📖 Style:
-        - Use gentle nature, time cycles, light, distant sounds, passive characters (e.g., someone sweeping, feeding fish).
-        - Characters (if present) must never speak or take active roles.
-        - No action, no suspense, no drama, no conversations.
+        ✅ You may include **a minimal character** (e.g., she, he, they, the keeper, the painter),
+        but they must never speak or act dramatically.
+        They may watch, fold, walk, feed, tidy, drift, wait, observe.
+        Never use dialogue, conflict, or plot.
 
-        Phase: **{phase}**
-        Context: "{context_snippet}"
-        Thematic summary: "{last_summary}"
+        🔁 Reinforce imagery from earlier chunks to improve cohesion.
+
+        🧘‍♀️ Style:
+        - Use tactile and sensory elements: fabric, paper, dust, shadows, candlelight, soft rain.
+        - Let time stretch and blur — avoid strong transitions.
+        - Focus on repetition, stillness, cyclical motions, fading light.
+
+        Current phase: **{phase}**
+        Theme: {theme or topic.title}
+        Topic summary: {topic.summary}
+        Context: "{recent_context}"
+        So far: "{last_summary}"
 
         ✍️ Write exactly {sentences_per_chunk} new slow, descriptive sentences.
-        At the end, return a 1–2 sentence summary of this chunk only.
+        📄 Then add a short summary (1–2 sentences) for just this section.
 
-        Respond strictly in JSON:
+        Return in this exact JSON format:
         {{
-            "sentences": ["sentence 1", "sentence 2", "..."],
-            "short_summary": "summary here"
+          "sentences": ["..."],
+          "short_summary": "..."
         }}
         """
 
         chunk = model.respond(prompt, response_format=StoryChunk)
-        if not isinstance(chunk.parsed, dict) or 'sentences' not in chunk.parsed:
-            print(f"❌ Invalid response from model: {chunk.parsed}")
+        if not isinstance(chunk.parsed, dict) or "sentences" not in chunk.parsed:
+            print("⚠️ Invalid chunk")
             continue
 
-        sentences = [s for s in chunk.parsed['sentences'] if isinstance(s, str) and s != 'short_summary']
+        sentences = [s for s in chunk.parsed["sentences"] if isinstance(s, str)]
         if not sentences:
-            print(f"❌ No valid sentences in response")
             continue
 
-        sentence_duration = CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
-        chunk_duration = len(sentences) * sentence_duration
-
-        chunks.append({
-            'sentences': sentences,
-            'short_summary': chunk.parsed.get('short_summary', '')
-        })
+        chunk_duration = len(sentences) * CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
+        chunks.append({"sentences": sentences, "short_summary": chunk.parsed.get("short_summary", "")})
         total_duration += chunk_duration
-        cumulative_summary += " " + chunk.parsed.get("short_summary", "")
         all_sentences.extend(sentences)
+        cumulative_summary += " " + chunk.parsed.get("short_summary", "")
 
-        # Intermediate save
-        intermediate_data = {
-            'topic_title': topic.title,
-            'topic_summary': topic.summary,
-            'total_duration': total_duration,
-            'sentences': all_sentences,
-            'chunks': chunks,
-            'cumulative_summary': cumulative_summary,
-            'completion_percentage': (total_duration / target_duration * 100),
-            'phase': phase
-        }
-        save_story_yaml(intermediate_data, is_intermediate=True, existing_path=story_path)
+        save_story_yaml({
+            "topic_title": topic.title,
+            "topic_summary": topic.summary,
+            "theme": theme,
+            "total_duration": total_duration,
+            "sentences": all_sentences,
+            "chunks": chunks,
+            "cumulative_summary": cumulative_summary,
+            "completion_percentage": total_duration / target_duration * 100,
+            "phase": phase
+        }, is_intermediate=True, existing_path=story_path)
 
-        print(f"🧩 Preview: {sentences[0]}")
-        print(f"⏳ Duration: {total_duration:.1f}/{target_duration} minutes ({(total_duration/target_duration*100):.1f}%)")
-        print(f"💾 Intermediate saved")
+        print(f"🧩 {sentences[0]}")
+        print(f"⏳ {total_duration:.1f}/{target_duration} min")
 
-    # Convert intermediate file to final version by removing debug info
-    final_data = {
-        'topic_title': topic.title,
-        'topic_summary': topic.summary,
-        'total_duration': total_duration,
-        'sentence_count': len(all_sentences),
-        'sentences': all_sentences
+    # Final write
+    final = {
+        "topic_title": topic.title,
+        "topic_summary": topic.summary,
+        "theme": theme,
+        "total_duration": total_duration,
+        "sentence_count": len(all_sentences),
+        "sentences": all_sentences
     }
-    
-    # Update the same file one last time without debug info
-    save_story_yaml(final_data, is_intermediate=False, existing_path=story_path)
-    
-    return final_data
+
+    save_story_yaml(final, is_intermediate=False, existing_path=story_path)
+    return final
+
 
 def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
     """Save the generated story to a YAML file.
@@ -378,6 +388,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
     parser.add_argument("--length", choices=['short', 'medium', 'long'], default='medium',
                         help="Story length preset (affects pacing and detail level)")
+    parser.add_argument("--interactive", action="store_true", 
+                        help="Enable interactive selection of themes and topics")
     
     return parser.parse_args()
 
@@ -410,36 +422,88 @@ def main():
     target_duration = args.duration or CONFIG.get('story', {}).get('target_duration_minutes', 60)
     
     try:
-        # If topic is provided, use it; otherwise generate topics and select one
-        if args.topic:
-            # Create a Topic object from the provided string
-            if args.summary:
-                summary = args.summary
+        # 3-stage generation pipeline
+        for story_index in range(args.count):
+            if args.count > 1:
+                print(f"\
+🔄 Generating story {story_index + 1} of {args.count}")
+            
+            # Stage 1: If topic is provided, use it; otherwise generate themes and topics
+            if args.topic:
+                # Create a Topic object from the provided string
+                if args.summary:
+                    summary = args.summary
+                else:
+                    summary = f"A calming story about {args.topic}"
+                topic = Topic(title=args.topic, summary=summary)
+                print(f"🎯 Using provided topic: {topic.title}")
+                print(f"📝 Using summary: {topic.summary}")
+                theme = None
             else:
-                summary = f"A calming story about {args.topic}"
-            topic = Topic(title=args.topic, summary=summary)
-            print(f"🎯 Using provided topic: {topic.title}")
-            print(f"📝 Using summary: {topic.summary}")
-        else:
-            # Generate topics and select one
-            topics = generate_topics(model)
-            print(f"🌙 Suggested topics:")
-            for i, t in enumerate(topics):
-                print(f"  {i+1}. {t.title} - {t.summary}")
-            topic = random.choice(topics)
-            print(f"🎯 Selected topic: {topic.title} - {topic.summary}")
-        
-        # Generate the story - this will create and update a single YAML file
-        story_data = generate_story(model, topic, target_duration)
-        
-        print(f"✅ Generated story with {len(story_data['sentences'])} sentences, total ~{story_data['total_duration']} minutes")
+                # Stage 1: Generate themes
+                print("🌟 Generating themes...")
+                themes = generate_themes(model)
+                
+                print(f"🎨 Available themes:")
+                for i, theme in enumerate(themes):
+                    print(f"  {i+1}. {theme}")
+                
+                # Select a theme (interactive or random)
+                if args.interactive:
+                    while True:
+                        try:
+                            theme_index = int(input("Select a theme (1-7): ")) - 1
+                            if 0 <= theme_index < len(themes):
+                                selected_theme = themes[theme_index]
+                                break
+                            else:
+                                print(f"Please enter a number between 1 and {len(themes)}")
+                        except ValueError:
+                            print("Please enter a valid number")
+                else:
+                    selected_theme = random.choice(themes)
+                
+                print(f"🎨 Selected theme: {selected_theme}")
+                
+                # Stage 2: Generate topics based on the selected theme
+                print("\
+🧠 Generating topics for this theme...")
+                topics = generate_topics_from_theme(model, selected_theme)
+                
+                print(f"🌙 Available topics:")
+                for i, t in enumerate(topics):
+                    print(f"  {i+1}. {t.title} - {t.summary}")
+                
+                # Select a topic (interactive or random)
+                if args.interactive:
+                    while True:
+                        try:
+                            topic_index = int(input("Select a topic (1-5): ")) - 1
+                            if 0 <= topic_index < len(topics):
+                                topic = topics[topic_index]
+                                break
+                            else:
+                                print(f"Please enter a number between 1 and {len(topics)}")
+                        except ValueError:
+                            print("Please enter a valid number")
+                else:
+                    topic = random.choice(topics)
+                
+                print(f"🎯 Selected topic: {topic.title} - {topic.summary}")
+                theme = selected_theme
+            
+            # Stage 3: Generate the story
+            story_data = generate_story(model, topic, theme, target_duration)
+            
+            print(f"✅ Generated story with {len(story_data['sentences'])} sentences, total ~{story_data['total_duration']} minutes")
         
         # Clean up
         model.unload()
         return 0
     
     except KeyboardInterrupt:
-        print("\n⚠️ Process interrupted by user")
+        print("\
+⚠️ Process interrupted by user")
         print("🛑 Exiting gracefully...")
         model.unload()
         return 130  # Standard exit code for SIGINT
