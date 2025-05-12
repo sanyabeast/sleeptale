@@ -257,7 +257,7 @@ def generate_story(model, topic, theme=None, target_duration=None):
 
     chunks, all_sentences = [], []
     total_duration, cumulative_summary = 0, ""
-    sentences_per_chunk = 10
+    sentences_per_chunk = CONFIG.get('story', {}).get('sentences_per_chunk', 10)
     
     # Keep track of common repetitive phrases to avoid
     repetitive_elements = set()
@@ -282,10 +282,11 @@ def generate_story(model, topic, theme=None, target_duration=None):
         phase = "start" if total_duration == 0 else "finish" if remaining <= 5 else "continue"
         
         # Compress the cumulative summary every few chunks to avoid repetition
+        compressed_context = cumulative_summary
         if len(chunks) % 3 == 0 and cumulative_summary:
             compressed_context = compress_summary(model, cumulative_summary)
-        else:
-            compressed_context = cumulative_summary
+            # Also update the cumulative_summary with its compressed version to prevent endless growth
+            cumulative_summary = compressed_context
         
         # Get recent context from the last few sentences
         recent_context = " ".join(all_sentences[-5:]) or topic.summary
@@ -388,6 +389,7 @@ def generate_story(model, topic, theme=None, target_duration=None):
             "sentences": all_sentences,
             "chunks": chunks,
             "cumulative_summary": cumulative_summary,
+            "compressed_context": compressed_context,
             "completion_percentage": total_duration / target_duration * 100,
             "phase": phase
         }, is_intermediate=True, existing_path=story_path)
@@ -402,7 +404,11 @@ def generate_story(model, topic, theme=None, target_duration=None):
         "theme": theme,
         "total_duration": total_duration,
         "sentence_count": len(all_sentences),
-        "sentences": all_sentences
+        "sentences": all_sentences,
+        "cumulative_summary": cumulative_summary,
+        "compressed_context": compressed_context,
+        "completion_percentage": 100,
+        "phase": "complete"
     }
 
     save_story_yaml(final, is_intermediate=False, existing_path=story_path)
@@ -440,17 +446,14 @@ def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
         'sentences': story_data['sentences']
     }
 
-    # Add debug info for intermediate saves, remove it for final save
-    if is_intermediate:
-        if 'chunks' in story_data:
-            yaml_data['debug'] = {
-                'completion_percentage': story_data.get('completion_percentage', 0),
-                'phase': story_data.get('phase', ''),
-                'cumulative_summary': story_data.get('cumulative_summary', '')
-            }
-    else:
-        # Remove debug info for final save
-        yaml_data.pop('debug', None)
+    # Add debug info for all saves
+    if 'chunks' in story_data or ('cumulative_summary' in story_data and 'compressed_context' in story_data):
+        yaml_data['debug'] = {
+            'completion_percentage': story_data.get('completion_percentage', 0),
+            'phase': story_data.get('phase', ''),
+            'cumulative_summary': story_data.get('cumulative_summary', ''),
+            'compressed_context': story_data.get('compressed_context', '')
+        }
 
     # Save to YAML
     with open(file_path, 'w', encoding='utf-8') as f:
