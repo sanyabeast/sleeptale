@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 import re
 from datetime import datetime
+from collections import Counter
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -214,6 +215,41 @@ def generate_topics_from_theme(model, theme):
     return [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
 
 
+def compress_summary(model, text: str) -> str:
+    """Compress a long summary into a concise representation to avoid repetition."""
+    prompt = f"""
+    Summarize the following story fragment into 1–2 dreamy, atmospheric sentences,
+    preserving the tone and key imagery, but avoiding repetition or specific phrasing.
+
+    Text:
+    {text.strip()}
+
+    Respond with plain text only.
+    """
+    # Get the response as plain text without JSON parsing
+    response = model.respond(prompt, response_format=None)
+    # For LM Studio API, we can access the text directly
+    return str(response).strip()
+
+
+def get_repetitive_ngrams(text: str, n=4, min_repeats=2):
+    """Detect repeating phrases."""
+    words = text.lower().split()
+    ngrams = [" ".join(words[i:i+n]) for i in range(len(words)-n+1)]
+    counter = Counter(ngrams)
+    return [ng for ng, c in counter.items() if c >= min_repeats]
+
+
+def deduplicate_sentences(sentences, history, max_prefix=6):
+    """Filter out sentences that start too similarly to recent history."""
+    def starts_like(s1, s2):
+        # Compare the first few words to detect similar sentence beginnings
+        return " ".join(s1.split()[:max_prefix]) == " ".join(s2.split()[:max_prefix])
+    
+    # Only keep sentences that don't start like any in the history
+    return [s for s in sentences if all(not starts_like(s, h) for h in history)]
+
+
 def generate_story(model, topic, theme=None, target_duration=None):
     """Generate a cohesive, slow-paced bedtime story from a given topic."""
     if target_duration is None:
@@ -222,6 +258,9 @@ def generate_story(model, topic, theme=None, target_duration=None):
     chunks, all_sentences = [], []
     total_duration, cumulative_summary = 0, ""
     sentences_per_chunk = 10
+    
+    # Keep track of common repetitive phrases to avoid
+    repetitive_elements = set()
 
     print(f"🛌 Generating story: {topic.title}")
     print(f"📝 Summary: {topic.summary}")
@@ -241,12 +280,48 @@ def generate_story(model, topic, theme=None, target_duration=None):
     while total_duration < target_duration:
         remaining = target_duration - total_duration
         phase = "start" if total_duration == 0 else "finish" if remaining <= 5 else "continue"
+        
+        # Compress the cumulative summary every few chunks to avoid repetition
+        if len(chunks) % 3 == 0 and cumulative_summary:
+            compressed_context = compress_summary(model, cumulative_summary)
+        else:
+            compressed_context = cumulative_summary
+        
+        # Get recent context from the last few sentences
         recent_context = " ".join(all_sentences[-5:]) or topic.summary
         last_summary = chunks[-1]['short_summary'] if chunks else topic.summary
+        
+        # Identify repetitive elements to avoid
+        avoid_elements = ""
+        if len(all_sentences) > 10:
+            recent_text = " ".join(all_sentences[-20:])
+            
+            # Detect repetitive phrases using n-grams
+            repeated = get_repetitive_ngrams(recent_text)
+            if repeated:
+                avoid_elements += "\n⚠️ Avoid repeating these ideas: " + ", ".join(repeated)
+            
+            # Track overused words
+            word_counts = Counter(recent_text.lower().split())
+            frequent_words = [w for w, c in word_counts.items() if len(w) > 3 and c > 3][:5]
+            if frequent_words:
+                avoid_elements += "\n🚫 Too frequent: " + ", ".join(frequent_words)
+            
+            # Simple detection of common phrases
+            text = " ".join(all_sentences[-20:]).lower()
+            for phrase in ["dust motes", "motes of dust", "shaft of light", "beam of light", 
+                          "sunlight", "moonlight", "candlelight", "shadows", "window"]:
+                if text.count(phrase) >= 2:
+                    repetitive_elements.add(phrase)
+        
+        if repetitive_elements:
+            avoid_elements += "\n⚠️ Avoid repeating these overused elements: " + ", ".join(repetitive_elements) + "."
 
         prompt = f"""
         You are a poetic narrator writing a bedtime story in quiet, meditative style.
 
+        {avoid_elements}
+        
         🎯 Objective:
         - Calm the listener and lull them toward sleep.
         - Maintain soft pacing, ambient imagery, gentle rhythm.
@@ -257,21 +332,24 @@ def generate_story(model, topic, theme=None, target_duration=None):
         They may watch, fold, walk, feed, tidy, drift, wait, observe.
         Never use dialogue, conflict, or plot.
 
-        🔁 Reinforce imagery from earlier chunks to improve cohesion.
+        🔁 Reinforce imagery from earlier chunks to improve cohesion, but with variation.
+        ⚠️ Avoid repeating details like "dust motes", "candlelight", or "shafts of light" more than once.
+        If already described, shift attention to other textures, rhythms, or sensations in the room or outside.
 
         🧘‍♀️ Style:
-        - Use tactile and sensory elements: fabric, paper, dust, shadows, candlelight, soft rain.
+        - Use tactile and sensory elements: fabric, paper, wood, stone, water, breath.
         - Let time stretch and blur — avoid strong transitions.
-        - Focus on repetition, stillness, cyclical motions, fading light.
+        - Focus on repetition, stillness, cyclical motions, subtle changes.
 
         Current phase: **{phase}**
         Theme: {theme or topic.title}
         Topic summary: {topic.summary}
-        Context: "{recent_context}"
-        So far: "{last_summary}"
+        Story essence: "{compressed_context}"
+        Recent context: "{recent_context}"
+        Last section: "{last_summary}"
 
-        ✍️ Write exactly {sentences_per_chunk} new slow, descriptive sentences.
-        📄 Then add a short summary (1–2 sentences) for just this section.
+        ✏️ Write exactly {sentences_per_chunk} new slow, descriptive sentences.
+        📝 Then add a short summary (1–2 sentences) for just this section.
 
         Return in this exact JSON format:
         {{
@@ -288,6 +366,13 @@ def generate_story(model, topic, theme=None, target_duration=None):
         sentences = [s for s in chunk.parsed["sentences"] if isinstance(s, str)]
         if not sentences:
             continue
+            
+        # Filter out sentences that are too similar to recent ones
+        if len(all_sentences) > 10:
+            filtered_sentences = deduplicate_sentences(sentences, all_sentences[-20:], max_prefix=5)
+            # Only use filtered sentences if we didn't lose too many
+            if len(filtered_sentences) >= len(sentences) * 0.7:
+                sentences = filtered_sentences
 
         chunk_duration = len(sentences) * CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
         chunks.append({"sentences": sentences, "short_summary": chunk.parsed.get("short_summary", "")})
