@@ -54,7 +54,7 @@ voice:
     enabled: true
   # Tempo manipulation settings
   tempo:
-    enabled: true  # Set to true to enable
+    enabled: false  # Set to true to enable
     factor: 0.9     # < 1.0 slows down, > 1.0 speeds up
   # Echo effect settings
   echo:
@@ -72,8 +72,8 @@ video:
   # Delay after voice lines finish (in seconds)
   end_delay: 10.0
   # Delay range between each voice line (in seconds)
-  line_delay_min: 0.65
-  line_delay_max: 1.05
+  line_delay_min: 0.75
+  line_delay_max: 1.25
   # Background music volume (relative to voice lines, 0.0-1.0)
   music_volume: 0.5
   # Video resolution (width x height) - used for quality scaling

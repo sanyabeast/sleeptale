@@ -12,7 +12,7 @@ def build_interface():
     # ------------------------------------------------------
     # INJECTION
     # ------------------------------------------------------
-    injected_server = InjectedServer(custom_hook)
+    injected_server = InjectedServer(generate_audio)
     # ------------------------------------------------------
     # END OF INJECTION
     # ------------------------------------------------------
