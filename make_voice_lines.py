@@ -590,17 +590,49 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
         
         if voice_index is not None and 0 <= voice_index < len(voice_presets):
             selected_preset = voice_presets[voice_index]
-            log(f"Using specified voice preset {voice_index}: {selected_preset}", "🎙️")
+            log(f"Using specified voice preset {voice_index}: {selected_preset}", "🎤")
         else:
             # Use a random preset if index is out of range or not specified
             selected_preset = random.choice(voice_presets)
-            log(f"Selected random voice preset: {selected_preset}", "🎙️")
+            log(f"Selected random voice preset: {selected_preset}", "🎤")
             
         voice_options['voice_preset'] = selected_preset
         voice_options['speed'] = orpheus_settings.get('speed', 1.0)
+        
+    elif provider_name == 'styletts2':
+        # For StyleTTS2, we use voice presets
+        styletts2_settings = CONFIG.get('voice', {}).get('styletts2_settings', {})
+        voice_presets = styletts2_settings.get('voice_presets', ['Richard_Male_EN_US'])
+        
+        if voice_index is not None and 0 <= voice_index < len(voice_presets):
+            selected_voice = voice_presets[voice_index]
+            log(f"Using specified StyleTTS2 voice {voice_index}: {selected_voice}", "🎤")
+        else:
+            # Use a random voice if index is out of range or not specified
+            selected_voice = random.choice(voice_presets)
+            log(f"Selected random StyleTTS2 voice: {selected_voice}", "🎤")
+            
+        voice_options['voice'] = selected_voice
+        voice_options['speed'] = styletts2_settings.get('speed', 50)
     
-    # Get number of sentences per voice line from config
-    sentences_per_line = CONFIG.get("voice", {}).get("sentences_per_voice_line", 1)
+    # Get provider-specific settings
+    provider_name = CONFIG.get('voice', {}).get('provider', 'zonos').lower()
+    
+    # Get number of sentences per voice line from provider-specific config
+    if provider_name == 'zonos':
+        zonos_settings = CONFIG.get('voice', {}).get('zonos_settings', {})
+        sentences_per_line = zonos_settings.get('sentences_per_voice_line', 1)
+    elif provider_name == 'orpheus':
+        orpheus_settings = CONFIG.get('voice', {}).get('orpheus_settings', {})
+        sentences_per_line = orpheus_settings.get('sentences_per_voice_line', 1)
+    elif provider_name == 'styletts2':
+        styletts2_settings = CONFIG.get('voice', {}).get('styletts2_settings', {})
+        sentences_per_line = styletts2_settings.get('sentences_per_voice_line', 3)
+    else:
+        # Default fallback
+        sentences_per_line = 1
+        
+    log(f"Using {sentences_per_line} sentences per voice line for {provider_name} provider", "🔊")
     
     # Process sentences in groups
     completed = 0
@@ -738,7 +770,7 @@ def parse_arguments():
                         help='Process only the specified story file (filename only, not full path)')
     parser.add_argument('-v', '--voice', type=int,
                         help='Force the use of a specific voice sample by index (0, 1, 2, etc.)')
-    parser.add_argument('-p', '--provider', choices=['zonos', 'orpheus'],
+    parser.add_argument('-p', '--provider', choices=['zonos', 'orpheus', 'styletts2'],
                         help='TTS provider to use (overrides config)')
     parser.add_argument('--clean', action='store_true', 
                         help='Remove all existing voice lines before generation')

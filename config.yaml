@@ -39,11 +39,7 @@ story:
 # Voice Generation Configuration
 voice:
   # TTS provider to use (zonos, orpheus)
-  provider: "orpheus"
-  
-  # Common settings for all providers
-  # Number of sentences to combine into a single voice line
-  sentences_per_voice_line: 1
+  provider: "styletts2"
   
   # Zonos provider settings
   zonos_settings:
@@ -53,15 +49,30 @@ voice:
     voice_sample: 
       - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Dude.mp3"
       - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Ruby.mp3"
+    # Number of sentences to combine into a single voice line
+    sentences_per_voice_line: 1
   
   # Orpheus provider settings
   orpheus_settings:
     # URL to your Orpheus TTS server
     tts_server: "http://localhost:5005/v1/audio/speech"
     # Voice presets to use
-    voice_presets: ["jess", "mia", "leo", "zac"]
+    voice_presets: ["tara", "zac"]
     # Speed factor (0.5 to 2.0)
-    speed: 0.9
+    speed: 0.5
+    # Number of sentences to combine into a single voice line
+    sentences_per_voice_line: 4
+    
+  # StyleTTS2 provider settings
+  styletts2_settings:
+    # Base URL for the StyleTTS2 API
+    base_url: "http://127.0.0.1:7860"
+    # Voice presets to use (chosen randomly for each voice line)
+    voice_presets: ["CalmDude1", "CalmGal1"]
+    # Speed percentage (1-100)
+    speed: 100
+    # Number of sentences to combine into a single voice line
+    sentences_per_voice_line: 1
   
   # Audio post-processing settings
   postprocessing:

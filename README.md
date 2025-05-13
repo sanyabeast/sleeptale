@@ -29,7 +29,7 @@ It combines:
   Specify target duration in minutes (e.g., `-d 10`) and number of stories to generate (e.g., `-c 2`).
 
 - **Multiple TTS Providers**  
-  Supports multiple text-to-speech providers (Zonos, Orpheus) with provider-specific settings and easy switching via config or command line.  
+  Supports multiple text-to-speech providers (Zonos, Orpheus, StyleTTS2) with provider-specific settings and easy switching via config or command line.  
 
 - **Advanced Audio Processing**  
   Includes audio normalization, tempo adjustment, and echo effects for creating the perfect sleep-inducing narration.
@@ -142,7 +142,7 @@ story:
 ### Voice Generation Settings
 ```yaml
 voice:
-  # TTS provider to use (zonos, orpheus)
+  # TTS provider to use (zonos, orpheus, styletts2)
   provider: "zonos"
   
   # Common settings for all providers
@@ -156,6 +156,8 @@ voice:
     voice_sample: 
       - "path/to/voice/sample1.mp3"
       - "path/to/voice/sample2.mp3"
+    # Number of sentences to combine into a single voice line
+    sentences_per_voice_line: 4
   
   # Orpheus provider settings
   orpheus_settings:
@@ -165,6 +167,19 @@ voice:
     voice_presets: ["jess", "mia", "leo", "zac"]
     # Speed factor (0.5 to 2.0)
     speed: 0.9
+    # Number of sentences to combine into a single voice line
+    sentences_per_voice_line: 4
+    
+  # StyleTTS2 provider settings
+  styletts2_settings:
+    # Base URL for the StyleTTS2 API
+    base_url: "http://127.0.0.1:7860"
+    # Voice presets to use (chosen randomly for each story)
+    voice_presets: ["CalmDude1", "CalmGal1"]
+    # Speed percentage (1-100)
+    speed: 110
+    # Number of sentences to combine into a single voice line
+    sentences_per_voice_line: 1
   
   # Audio post-processing settings
   postprocessing:
