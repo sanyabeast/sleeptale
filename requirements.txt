@@ -15,6 +15,7 @@ fastapi==0.115.12
 ffmpy==0.5.0
 filelock==3.18.0
 fsspec==2025.3.2
+fuzzywuzzy==0.18.0
 gevent==24.11.1
 gradio==5.25.0
 gradio_client==1.8.0
@@ -31,6 +32,7 @@ imageio-ffmpeg==0.6.0
 Jinja2==3.1.6
 joblib==1.4.2
 lazy_loader==0.4
+Levenshtein==0.27.1
 librosa==0.11.0
 llvmlite==0.44.0
 lmstudio==1.2.0
@@ -57,11 +59,14 @@ pydantic==2.11.3
 pydantic_core==2.33.1
 pydub==0.25.1
 Pygments==2.19.1
+pyrubberband==0.4.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
+python-Levenshtein==0.27.1
 python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.2
+RapidFuzz==3.13.0
 requests==2.32.3
 rich==14.0.0
 ruff==0.11.5

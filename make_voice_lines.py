@@ -13,6 +13,11 @@ import soundfile as sf
 import argparse
 import re
 import shutil
+from tqdm import tqdm
+import datetime
+
+# Import TTS provider factory
+from tts_providers import get_tts_provider
 
 # Import pyrubberband for high-quality time-stretching
 try:
@@ -150,9 +155,7 @@ def load_config():
 
 # Global variables
 CONFIG = None
-TTS_SERVER = None
-VOICE_SAMPLE = None
-SPEECH_RATE = None
+TTS_PROVIDER = None
 STORIES_DIR = None
 VOICE_LINES_DIR = None
 
@@ -201,7 +204,7 @@ def normalize_path(path):
     return str(Path(path)).replace('\\', '/')
 
 def preprocess_text_for_tts(text):
-    """Preprocess text to make it more compatible with Zonos TTS server.
+    """Preprocess text to make it more compatible with TTS providers.
     
     Args:
         text: The original text to preprocess
@@ -209,51 +212,21 @@ def preprocess_text_for_tts(text):
     Returns:
         Preprocessed text with problematic characters removed/replaced
     """
-    if not text:
-        return text
-    
-    # 1. Convert to string if not already
-    text = str(text)
-    
-    # 2. Replace various quote types with nothing
-    text = text.replace('"', '').replace('\u201c', '').replace('\u201d', '').replace('\u2018', '').replace('\u2019', '')
-    
-    # 3. Replace ellipsis variations with a single dot
-    text = text.replace('...', '.').replace('. . .', '.').replace('\u2026', '.')
-    
-    # 4. Replace multiple dots with a single dot
-    text = re.sub(r'\.{2,}', '.', text)
-    
-    # 5. Remove problematic words (case insensitive)
-    problem_words = ['ugh']
-    for word in problem_words:
-        text = re.sub(rf'\b{word}\b', '', text, flags=re.IGNORECASE)
-    
-    # 6. Clean up whitespace
-    # - Replace newlines and tabs with spaces
-    text = text.replace('\n', ' ').replace('\t', ' ').replace('\r', ' ')
-    # - Replace multiple spaces with a single space
-    text = re.sub(r'\s+', ' ', text)
-    # - Remove leading/trailing whitespace
-    text = text.strip()
-    
-    # 7. Ensure proper spacing after punctuation
-    text = re.sub(r'([.,!?])([^\s])', r'\1 \2', text)
-    
-    # 8. Remove any empty parentheses
-    text = re.sub(r'\(\s*\)', '', text)
-    
-    # 9. Ensure the text ends with proper punctuation
-    if text and not text[-1] in '.!?':
-        text += '.'
-    
-    return text
+    # This function is now delegated to the TTS provider
+    # but we keep it for backward compatibility
+    return TTS_PROVIDER.preprocess_text(text)
 
-def generate_voice_line(text, output_path, selected_voice):
-    """Generate voice line using TTS server."""
-    # Normalize the output path to use forward slashes
-    normalized_output_path = normalize_path(output_path)
+def generate_voice_line(text, output_path, voice_options):
+    """Generate voice line using the configured TTS provider.
     
+    Args:
+        text: The text to convert to speech
+        output_path: Path where the audio file should be saved
+        voice_options: Provider-specific voice options
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
     # Preprocess text for better TTS compatibility
     original_text = text
     processed_text = preprocess_text_for_tts(text)
@@ -262,24 +235,8 @@ def generate_voice_line(text, output_path, selected_voice):
     if processed_text != original_text:
         log(f"Preprocessed text: \"{original_text}\" → \"{processed_text}\"", "🔄")
     
-    params = {
-        'text': processed_text,
-        'path': normalized_output_path,
-        'voice': selected_voice,
-        'emotion': 'Neutral',  # Default emotion
-    }
-    
-    try:
-        log("Sending request to TTS server...", "🔄")
-        response = requests.get(TTS_SERVER, params=params)
-        if response.status_code == 200:
-            return True
-        else:
-            log(f"Error generating voice line: {response.text}", "⚠️")
-            return False
-    except Exception as e:
-        log(f"Exception when calling TTS API: {str(e)}", "⚠️")
-        return False
+    # Use the provider to generate the voice line
+    return TTS_PROVIDER.generate_voice_line(processed_text, output_path, voice_options)
 
 def use_rubberband_direct(input_path, output_path, tempo_factor):
     """
@@ -566,63 +523,81 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
     total_sentences = len(story['sentences'])
     log(f"Total sentences to process: {total_sentences}")
     
-    # Get normalization settings from config
+    # Get postprocessing settings from config
+    postprocessing = CONFIG.get("voice", {}).get("postprocessing", {})
+    
+    # Get normalization settings from config or command line arguments
     if normalize_audio_setting is None:
-        normalization_enabled = CONFIG.get("voice", {}).get("normalization", {}).get("enabled", False)
-    else:
-        normalization_enabled = normalize_audio_setting
-    
+        normalize_audio_setting = postprocessing.get("normalization", {}).get("enabled", True)
     if target_db is None:
-        target_db = CONFIG.get("voice", {}).get("normalization", {}).get("target_db", -20.0)
-    
-    # Get tempo manipulation settings from config
+        target_db = postprocessing.get("normalization", {}).get("target_db", -20.0)
+        
+    # Get tempo settings from config or command line arguments
     if tempo_setting is None:
-        tempo_enabled = CONFIG.get("voice", {}).get("tempo", {}).get("enabled", False)
-    else:
-        tempo_enabled = tempo_setting
-    
+        tempo_setting = postprocessing.get("tempo", {}).get("enabled", False)
     if tempo_factor is None:
-        tempo_factor = CONFIG.get("voice", {}).get("tempo", {}).get("factor", 0.9)
-    
-    # Get echo effect settings from config
+        tempo_factor = postprocessing.get("tempo", {}).get("factor", 0.9)
+        
+    # Get echo settings from config or command line arguments
     if echo_setting is None:
-        echo_enabled = CONFIG.get("voice", {}).get("echo", {}).get("enabled", False)
-    else:
-        echo_enabled = echo_setting
-    
+        echo_setting = postprocessing.get("echo", {}).get("enabled", False)
     if echo_delay is None:
-        echo_delay = CONFIG.get("voice", {}).get("echo", {}).get("delay", 0.3)
-    
+        echo_delay = postprocessing.get("echo", {}).get("delay", 0.3)
     if echo_decay is None:
-        echo_decay = CONFIG.get("voice", {}).get("echo", {}).get("decay", 0.5)
+        echo_decay = postprocessing.get("echo", {}).get("decay", 0.5)
     
     # Log audio processing settings
-    if normalization_enabled:
+    if normalize_audio_setting:
         log(f"Audio normalization enabled (target: {target_db} dB)", "🔊")
     
-    if tempo_enabled:
+    if tempo_setting:
         log(f"Tempo manipulation enabled (factor: {tempo_factor})", "🔊")
     
-    if echo_enabled:
+    if echo_setting:
         log(f"Echo effect enabled (delay: {echo_delay}s, decay: {echo_decay})", "🔊")
     
     # Create story-specific output directory
     output_dir_path = os.path.join(PROJECT_DIR, "output", VOICE_LINES_DIR, story_name)
     ensure_dir_exists(output_dir_path)
     
-    # Select voice for this story
-    if voice_index is not None:
-        if 0 <= voice_index < len(VOICE_SAMPLE):
-            selected_voice = VOICE_SAMPLE[voice_index]
-            log(f"Using specified voice {voice_index}: {os.path.basename(selected_voice)}", "🎙️")
+    # Prepare voice options based on the provider
+    voice_options = {}
+    provider_name = CONFIG.get('voice', {}).get('provider', 'zonos').lower()
+    
+    if provider_name == 'zonos':
+        # For Zonos, we need to handle voice samples
+        zonos_settings = CONFIG.get('voice', {}).get('zonos_settings', {})
+        voice_sample = zonos_settings.get('voice_sample', None)
+        
+        if isinstance(voice_sample, list):
+            if voice_index is not None and 0 <= voice_index < len(voice_sample):
+                selected_voice = voice_sample[voice_index]
+                log(f"Using specified voice {voice_index}: {os.path.basename(selected_voice)}", "🎙️")
+            else:
+                # Use a random voice if index is out of range or not specified
+                selected_voice = random.choice(voice_sample)
+                log(f"Selected random voice: {os.path.basename(selected_voice)}", "🎙️")
         else:
-            log(f"Warning: Voice index {voice_index} is out of range (0-{len(VOICE_SAMPLE)-1}). Using random voice instead.", "⚠️")
-            selected_voice = random.choice(VOICE_SAMPLE)
-            log(f"Selected random voice: {os.path.basename(selected_voice)}", "🎙️")
-    else:
-        # Select a random voice for this story
-        selected_voice = random.choice(VOICE_SAMPLE)
-        log(f"Selected random voice: {os.path.basename(selected_voice)}", "🎙️")
+            selected_voice = voice_sample
+            log(f"Using voice: {os.path.basename(selected_voice)}", "🎙️")
+            
+        voice_options['voice_sample'] = selected_voice
+            
+    elif provider_name == 'orpheus':
+        # For Orpheus, we use voice presets
+        orpheus_settings = CONFIG.get('voice', {}).get('orpheus_settings', {})
+        voice_presets = orpheus_settings.get('voice_presets', ['jess'])
+        
+        if voice_index is not None and 0 <= voice_index < len(voice_presets):
+            selected_preset = voice_presets[voice_index]
+            log(f"Using specified voice preset {voice_index}: {selected_preset}", "🎙️")
+        else:
+            # Use a random preset if index is out of range or not specified
+            selected_preset = random.choice(voice_presets)
+            log(f"Selected random voice preset: {selected_preset}", "🎙️")
+            
+        voice_options['voice_preset'] = selected_preset
+        voice_options['speed'] = orpheus_settings.get('speed', 1.0)
     
     # Get number of sentences per voice line from config
     sentences_per_line = CONFIG.get("voice", {}).get("sentences_per_voice_line", 1)
@@ -630,14 +605,24 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
     # Process sentences in groups
     completed = 0
     skipped = 0
-    sentences = story['sentences']
     total_groups = (total_sentences + sentences_per_line - 1) // sentences_per_line
+    log(f"Processing {total_groups} voice lines...")
+    
+    # Track generation time for statistics
+    start_time = time.time()
+    
+    # Create progress bar
+    pbar = tqdm(total=total_sentences, desc="Generating voice lines", unit="sentence")
+    
+    # Variables for time estimation
+    processed_sentences = 0
+    generation_times = []
     
     for group_idx in range(total_groups):
         # Get sentences for this group
         start_idx = group_idx * sentences_per_line
         end_idx = min(start_idx + sentences_per_line, total_sentences)
-        group_sentences = sentences[start_idx:end_idx]
+        group_sentences = story['sentences'][start_idx:end_idx]
         
         # Create output filename with zero-padded index
         output_filename = f"{start_idx:04d}.wav"
@@ -647,6 +632,8 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
         if os.path.exists(output_path) and not force_regenerate:
             log(f"Skipping group {group_idx+1}/{total_groups}: File already exists", "⏩")
             skipped += len(group_sentences)
+            # Update progress bar for skipped sentences
+            pbar.update(len(group_sentences))
             continue
         
         # Show progress percentage
@@ -662,63 +649,87 @@ def process_story(story_file, force_regenerate=False, normalize_audio_setting=No
         log(f"Processing group {group_idx+1}/{total_groups} ({progress_pct:.1f}%):", "🔊")
         log(f"Text: \"{combined_text}\"", "📝")
         
+        # Track generation time for this group
+        group_start_time = time.time()
+        
         # Generate voice line for combined sentences
-        if generate_voice_line(combined_text, output_path, selected_voice):
+        if generate_voice_line(combined_text, output_path, voice_options):
+            # Calculate generation time for this group
+            group_time = time.time() - group_start_time
+            generation_times.append(group_time / len(group_sentences))
+            
+            # Update progress bar
+            pbar.update(len(group_sentences))
+            processed_sentences += len(group_sentences)
+            
+            # Calculate and display estimated time remaining
+            if len(generation_times) > 0:
+                avg_time = sum(generation_times) / len(generation_times)
+                remaining_sentences = total_sentences - processed_sentences - skipped
+                est_remaining_time = remaining_sentences * avg_time
+                
+                # Format estimated time remaining
+                est_time_str = str(datetime.timedelta(seconds=int(est_remaining_time)))
+                
+                # Update progress bar description
+                pbar.set_description(f"Generating voice lines (ETA: {est_time_str})")
+            
             log(f"Generated: {output_filename}", "✅")
             completed += len(group_sentences)
             
             # Apply audio effects if any are enabled
             effects_applied = False
             
-            # Apply tempo and echo effects if enabled
-            if (tempo_enabled or echo_enabled) and os.path.exists(output_path):
+            # Apply audio effects if enabled
+            if tempo_setting or echo_setting:
+                # Prepare settings dictionaries
                 tempo_settings = {
-                    'enabled': tempo_enabled,
+                    'enabled': tempo_setting,
                     'factor': tempo_factor
-                } if tempo_enabled else None
+                }
                 
                 echo_settings = {
-                    'enabled': echo_enabled,
+                    'enabled': echo_setting,
                     'delay': echo_delay,
                     'decay': echo_decay
-                } if echo_enabled else None
+                }
                 
-                log(f"Applying audio effects...", "🔄")
+                log(f"Applying audio effects...", "🎧")
                 success, original_duration, new_duration = apply_audio_effects(
-                    output_path, None, tempo_settings, echo_settings
+                    output_path, output_path, tempo_settings, echo_settings
                 )
                 
                 if success:
-                    effects_msg = []
-                    if tempo_enabled:
-                        effects_msg.append(f"tempo:{tempo_factor}")
-                    if echo_enabled:
-                        effects_msg.append(f"echo:{echo_decay}")
-                    
-                    log(f"Applied effects ({', '.join(effects_msg)}): {output_filename} ({original_duration:.2f}s → {new_duration:.2f}s)", "✅")
+                    log(f"Applied effects: {output_filename} ({original_duration:.2f}s → {new_duration:.2f}s)", "✅")
                     effects_applied = True
                 else:
                     log(f"Failed to apply audio effects: {output_filename}", "⚠️")
             
             # Normalize audio if enabled (after effects)
-            if normalization_enabled and os.path.exists(output_path):
-                log(f"Normalizing audio to {target_db} dB...", "🔄")
-                success, original_duration, new_duration = normalize_audio(
-                    output_path, None, target_db
-                )
+            if normalize_audio_setting and os.path.exists(output_path):
+                log(f"Normalizing audio to {target_db} dB...", "🔊")
+                success, _, _ = normalize_audio(output_path, None, target_db)
                 if success:
-                    log(f"Normalized: {output_filename} ({original_duration:.2f}s → {new_duration:.2f}s)", "✅")
+                    log(f"Normalized: {output_filename}", "✅")
                 else:
                     log(f"Failed to normalize: {output_filename}", "⚠️")
         else:
             log(f"Failed to generate: {output_filename}", "❌")
     
+    # Close the progress bar
+    pbar.close()
+    
+    # Calculate total time taken
+    total_time = time.time() - start_time
+    time_str = str(datetime.timedelta(seconds=int(total_time)))
+    
     # Show summary for this story
-    log(f"\nSummary for '{story['topic_title']}':", "📊")
+    log(f"\nSummary for '{story['topic_title']}':" , "📊")
     log(f"  - Total sentences: {total_sentences}", "📊")
     log(f"  - Generated: {completed}", "📊")
     log(f"  - Skipped: {skipped}", "📊")
     log(f"  - Failed: {total_sentences - completed - skipped}", "📊")
+    log(f"  - Total time: {time_str}", "📊")
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -727,6 +738,8 @@ def parse_arguments():
                         help='Process only the specified story file (filename only, not full path)')
     parser.add_argument('-v', '--voice', type=int,
                         help='Force the use of a specific voice sample by index (0, 1, 2, etc.)')
+    parser.add_argument('-p', '--provider', choices=['zonos', 'orpheus'],
+                        help='TTS provider to use (overrides config)')
     parser.add_argument('--clean', action='store_true', 
                         help='Remove all existing voice lines before generation')
     parser.add_argument('--force', action='store_true',
@@ -757,29 +770,20 @@ def main():
     """Main function to process all stories."""
     args = parse_arguments()
     
-    # Load configuration
-    global CONFIG, TTS_SERVER, VOICE_SAMPLE, SPEECH_RATE, STORIES_DIR, VOICE_LINES_DIR, RUBBERBAND_AVAILABLE
+    # Load global config variables
+    global CONFIG, TTS_PROVIDER, STORIES_DIR, VOICE_LINES_DIR
     CONFIG = load_config()
     
-    # Check for Rubberband path in config if not already found
-    if not RUBBERBAND_AVAILABLE and 'pyrb' in globals():
-        rubberband_path = CONFIG.get('voice', {}).get('rubberband', {}).get('path')
-        if rubberband_path and os.path.isfile(rubberband_path):
-            print(f"✅ Using Rubberband executable from config: {rubberband_path}")
-            # Monkey patch pyrubberband to use the specified executable path
-            pyrb.pyrb._RUBBERBAND_UTIL = rubberband_path
-            RUBBERBAND_AVAILABLE = True
+    # Override provider if specified in command line arguments
+    voice_config = CONFIG.get('voice', {})
+    if args.provider:
+        log(f"Overriding TTS provider from config with: {args.provider}", "🔄")
+        voice_config['provider'] = args.provider
     
-    # Voice generation settings
-    TTS_SERVER = CONFIG["voice"]["tts_server"]
-    # Get list of voice samples
-    VOICE_SAMPLE = CONFIG["voice"]["voice_sample"]
-    if not isinstance(VOICE_SAMPLE, list):
-        VOICE_SAMPLE = [VOICE_SAMPLE]  # Convert single voice to list for backward compatibility
+    # Initialize the appropriate TTS provider
+    TTS_PROVIDER = get_tts_provider(voice_config)
     
-    # No rate parameter used - using TTS server default
-    
-    # Directory settings
+    # Set directory names
     STORIES_DIR = "stories"
     VOICE_LINES_DIR = "voice_lines"
     

@@ -28,8 +28,11 @@ It combines:
 - **Duration Control**  
   Specify target duration in minutes (e.g., `-d 10`) and number of stories to generate (e.g., `-c 2`).
 
-- **TTS Narration with Audio Processing**  
-  Uses TTS to narrate the story with consistent -20dB audio normalization.
+- **Multiple TTS Providers**  
+  Supports multiple text-to-speech providers (Zonos, Orpheus) with provider-specific settings and easy switching via config or command line.  
+
+- **Advanced Audio Processing**  
+  Includes audio normalization, tempo adjustment, and echo effects for creating the perfect sleep-inducing narration.
 
 - **Random Visual Backgrounds**  
   Automatically selects random background videos from your library to create a visually calming experience.
@@ -113,6 +116,13 @@ sleeptale/
 │   ├── stories/           # Generated story YAML files
 │   ├── voice_lines/       # Generated voice line audio files
 │   └── videos/            # Final rendered videos
+├── tts_providers/         # TTS provider implementations
+│   ├── __init__.py        # Package initialization
+│   ├── base_provider.py   # Base TTS provider interface
+│   ├── provider_factory.py # Factory for creating providers
+│   ├── zonos_provider.py  # Zonos TTS provider implementation
+│   ├── orpheus_provider.py # Orpheus TTS provider implementation
+│   └── utils.py           # Utility functions for providers
 ├── make_story.py          # Script for story generation
 ├── make_voice_lines.py    # Script for generating voice lines
 └── make_video.py          # Script for creating final videos
@@ -132,11 +142,45 @@ story:
 ### Voice Generation Settings
 ```yaml
 voice:
-  tts_server: "http://localhost:5001/generate"
-  voice_sample: "path/to/voice/sample.mp3"
-  normalization:
-    target_db: -20.0
-    enabled: true
+  # TTS provider to use (zonos, orpheus)
+  provider: "zonos"
+  
+  # Common settings for all providers
+  sentences_per_voice_line: 1
+  
+  # Zonos provider settings
+  zonos_settings:
+    # URL to your Zonos TTS server
+    tts_server: "http://localhost:5001/generate"
+    # Voice samples to use
+    voice_sample: 
+      - "path/to/voice/sample1.mp3"
+      - "path/to/voice/sample2.mp3"
+  
+  # Orpheus provider settings
+  orpheus_settings:
+    # URL to your Orpheus TTS server
+    tts_server: "http://localhost:5005/v1/audio/speech"
+    # Voice presets to use
+    voice_presets: ["jess", "mia", "leo", "zac"]
+    # Speed factor (0.5 to 2.0)
+    speed: 0.9
+  
+  # Audio post-processing settings
+  postprocessing:
+    # Audio normalization settings
+    normalization:
+      enabled: true
+      target_db: -20.0
+    # Tempo manipulation settings
+    tempo:
+      enabled: false  # Set to true to enable
+      factor: 0.9     # < 1.0 slows down, > 1.0 speeds up
+    # Echo effect settings
+    echo:
+      enabled: true
+      delay: 0.1      # Delay in seconds
+      decay: 0.05     # Echo volume decay (0-1)
 ```
 
 ### Video Generation Settings
@@ -219,11 +263,19 @@ Each script will use `configs/sample.yaml` by default, or you can specify a diff
 #### Voice Generation (make_voice_lines.py)
 - `-s, --story`: Process only the specified story file
 - `-v, --voice`: Force the use of a specific voice sample by index (0, 1, 2, etc.)
+- `-p, --provider`: TTS provider to use (zonos, orpheus) - overrides config
 - `--clean`: Remove all existing voice lines before generation
 - `--force`: Force regeneration of voice lines even if they already exist
 - `--normalize`: Force audio normalization even if disabled in config
 - `--no-normalize`: Disable audio normalization even if enabled in config
 - `--target-db`: Target dB level for audio normalization (overrides config)
+- `--tempo`: Force tempo manipulation even if disabled in config
+- `--no-tempo`: Disable tempo manipulation even if enabled in config
+- `--tempo-factor`: Tempo change factor (< 1.0 slows down, > 1.0 speeds up)
+- `--echo`: Force echo effect even if disabled in config
+- `--no-echo`: Disable echo effect even if enabled in config
+- `--echo-delay`: Echo delay in seconds
+- `--echo-decay`: Echo decay factor (0-1)
 
 #### Video Generation (make_video.py)
 - `-c, --config`: Path to config file (default: configs/sample.yaml)
@@ -258,7 +310,17 @@ Each script will use `configs/sample.yaml` by default, or you can specify a diff
    python make_voice_lines.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012.yaml -v 1
    ```
 
-2. **Create video for a specific story**:
+2. **Generate voice lines using a specific TTS provider**:
+   ```bash
+   python make_voice_lines.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012.yaml -p orpheus
+   ```
+
+3. **Generate voice lines with audio effects**:
+   ```bash
+   python make_voice_lines.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012.yaml --tempo --tempo-factor 0.85 --echo --echo-delay 0.2
+   ```
+
+4. **Create video for a specific story**:
    ```bash
    python make_video.py -s floating_on_a_calm_ocean_under_a_starry_night_sky_20250509_003012
    ```

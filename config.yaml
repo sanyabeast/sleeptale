@@ -38,32 +38,51 @@ story:
 
 # Voice Generation Configuration
 voice:
-  # URL to your TTS server
-  tts_server: "http://localhost:5001/generate"
-  # Voice profile to use
-  voice_sample: 
-    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Dude.mp3"
-    - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Ruby.mp3"
+  # TTS provider to use (zonos, orpheus)
+  provider: "orpheus"
+  
+  # Common settings for all providers
   # Number of sentences to combine into a single voice line
   sentences_per_voice_line: 1
-  # Audio normalization settings
-  normalization:
-    # Target dB level for audio normalization
-    target_db: -20.0
-    # Whether to automatically normalize generated audio
-    enabled: true
-  # Tempo manipulation settings
-  tempo:
-    enabled: false  # Set to true to enable
-    factor: 0.9     # < 1.0 slows down, > 1.0 speeds up
-  # Echo effect settings
-  echo:
-    enabled: true  # Set to true to enable
-    delay: 0.1      # Delay in seconds
-    decay: 0.05      # Echo volume decay (0-1)
-  # Rubberband configuration for high-quality tempo manipulation
-  rubberband:
-    path: "C:\\Dev\\rubberband-4.0.0-gpl-executable-windows\\rubberband.exe"  # Path to rubberband executable
+  
+  # Zonos provider settings
+  zonos_settings:
+    # URL to your Zonos TTS server
+    tts_server: "http://localhost:5001/generate"
+    # Voice samples to use
+    voice_sample: 
+      - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Dude.mp3"
+      - "G:\\Projects\\big_business\\sleeptale\\lib\\voice\\Ruby.mp3"
+  
+  # Orpheus provider settings
+  orpheus_settings:
+    # URL to your Orpheus TTS server
+    tts_server: "http://localhost:5005/v1/audio/speech"
+    # Voice presets to use
+    voice_presets: ["jess", "mia", "leo", "zac"]
+    # Speed factor (0.5 to 2.0)
+    speed: 0.9
+  
+  # Audio post-processing settings
+  postprocessing:
+    # Audio normalization settings
+    normalization:
+      # Whether to automatically normalize generated audio
+      enabled: true
+      # Target dB level for audio normalization
+      target_db: -20.0
+    # Tempo manipulation settings
+    tempo:
+      enabled: false  # Set to true to enable
+      factor: 0.9     # < 1.0 slows down, > 1.0 speeds up
+    # Echo effect settings
+    echo:
+      enabled: true  # Set to true to enable
+      delay: 0.1      # Delay in seconds
+      decay: 0.05      # Echo volume decay (0-1)
+    # Rubberband configuration for high-quality tempo manipulation
+    rubberband:
+      path: "C:\\Dev\\rubberband-4.0.0-gpl-executable-windows\\rubberband.exe"  # Path to rubberband executable
 
 # Video Generation Configuration
 video:
