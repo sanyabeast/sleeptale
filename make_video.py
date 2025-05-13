@@ -223,8 +223,8 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     
     log(f"Using delays: start={start_delay}s, between lines={line_delay_min}-{line_delay_max}s, end={end_delay}s", "⏱️")
     
-    # Load all voice line audio clips
-    voice_clips = [AudioFileClip(file) for file in voice_files]
+    # Load all voice line audio clips and trim the end slightly to prevent clicks
+    voice_clips = [AudioFileClip(file).subclip(0, -0.05) for file in voice_files]
     
     # Create silent clips for delays
     from moviepy.audio.AudioClip import AudioClip
@@ -326,13 +326,23 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     # Get encoding settings from config
     encoding_config = CONFIG.get('video', {}).get('encoding', {})
     video_codec = encoding_config.get('video_codec', 'libx264')
-    video_bitrate = encoding_config.get('video_bitrate', '4M')
+    video_bitrate = encoding_config.get('video_bitrate', '2M')
     audio_codec = encoding_config.get('audio_codec', 'aac')
-    audio_bitrate = encoding_config.get('audio_bitrate', '192k')
-    fps = encoding_config.get('fps', 30)
+    audio_bitrate = encoding_config.get('audio_bitrate', '128k')
+    fps = encoding_config.get('fps', 24)
     threads = encoding_config.get('threads', 0)
+    preset = encoding_config.get('preset', 'ultrafast')
+    tune = encoding_config.get('tune', 'fastdecode')
+    crf = encoding_config.get('crf', 28)
     
-    log(f"Using codec: {video_codec}, bitrate: {video_bitrate}", "🎬")
+    log(f"Using codec: {video_codec}, bitrate: {video_bitrate}, preset: {preset}, tune: {tune}", "🎬")
+    
+    # Prepare ffmpeg parameters for preset, tune and CRF
+    ffmpeg_params = [
+        f"-preset", preset,
+        f"-tune", tune,
+        f"-crf", str(crf)
+    ]
     
     video_with_audio.write_videofile(
         output_path,
@@ -343,7 +353,8 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
         temp_audiofile=os.path.join(VIDEOS_OUTPUT_DIR, "temp_audio.m4a"),
         remove_temp=True,
         fps=fps,
-        threads=threads
+        threads=threads,
+        ffmpeg_params=ffmpeg_params
     )
     
     log(f"Video created successfully: {output_path}", "✅")
@@ -355,7 +366,7 @@ def parse_args():
     
     parser.add_argument("-s", "--story", help="Process only the specified story (filename without extension)")
     parser.add_argument("-f", "--force", action="store_true", help="Force regeneration even for existing videos")
-    parser.add_argument("-q", "--quality", type=int, default=1080, help="Video quality as frame height (e.g., 720 for 720p, 1080 for 1080p)")
+    parser.add_argument("-q", "--quality", type=int, default=720, help="Video quality as frame height (e.g., 720 for 720p, 1080 for 1080p)")
     
     return parser.parse_args()
 

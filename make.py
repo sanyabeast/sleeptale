@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument("-c", type=int, default=1, help="Number of stories to generate (default: 1)")
     parser.add_argument("-m", "--model", type=str, help="Model to use for story generation (overrides config)")
     parser.add_argument("-d", "--duration", type=int, help="Duration of stories in minutes (overrides config)")
-    parser.add_argument("-q", "--quality", type=int, default=1080, help="Video quality as frame height (e.g., 720 for 720p, 1080 for 1080p)")
+    parser.add_argument("-q", "--quality", type=int, default=720, help="Video quality as frame height (e.g., 720 for 720p, 1080 for 1080p)")
     
     return parser.parse_args()
 
