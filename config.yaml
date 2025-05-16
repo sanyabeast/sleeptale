@@ -69,8 +69,8 @@ voice:
     # Base URL for the StyleTTS2 API
     base_url: "http://127.0.0.1:7860"
     # Voice presets to use (chosen randomly for each voice line)
-    voice_presets: ["CalmDude1", "CalmGal1"]
-    speed: 110
+    voice_presets: ["CalmDude2", "CalmGal2"]
+    speed: 100
     # Number of sentences to combine into a single voice line
     sentences_per_voice_line: 1
   
@@ -231,8 +231,6 @@ prompts:
 
     🎨 Ambient tone hint: *{tone_modifier}*  
     - Use this as a subtle emotional backdrop (e.g., "foggy glass morning", "quiet lanternlight").
-
-    🔁 If a natural loop or stillness emerges, it’s okay to suggest: [Potential chapter end]
 
     📚 Story Essence: {story_essence}
     🎨 Theme: {theme}
