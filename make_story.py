@@ -49,9 +49,13 @@ def update_directories():
     """Update directory paths for output files."""
     global STORIES_DIR
     
+    # Get directory paths from config
+    output_dir_name = CONFIG.get('directories', {}).get('output', 'output')
+    stories_dir_name = CONFIG.get('directories', {}).get('stories', 'stories')
+    
     # Create output directory structure
-    output_dir = os.path.join(PROJECT_DIR, "output")
-    STORIES_DIR = os.path.join(output_dir, "stories")
+    output_dir = os.path.join(PROJECT_DIR, output_dir_name)
+    STORIES_DIR = os.path.join(output_dir, stories_dir_name)
     
     # Create directories if they don't exist
     os.makedirs(STORIES_DIR, exist_ok=True)
@@ -125,123 +129,70 @@ def get_recent_stories(num_stories=10):
 
 def generate_themes(model):
     """Generate 10 diverse, calming, and visually intuitive themes for sleep stories."""
+    # Get recent stories to avoid repetition
     recent_titles = get_recent_stories(10)
     recent_titles_str = '\n'.join([f'• "{title}"' for title in recent_titles])
-
-    prompt = f"""
-    You are a poetic assistant creating diverse, calming storytelling themes
-    for a bedtime story generator.
-
-    🎯 Your task:
-    - Generate exactly 10 unique themes.
-    - Each should inspire peaceful, slow, atmospheric stories.
-    - Make them **visually intuitive** (scenes, objects, moods) and **emotionally neutral**.
-    - Most themes should feel grounded or nature-based, but it's OK to include 1 space-themed or slightly surreal theme.
-
-    💡 Source inspiration from:
-    - Soft natural environments (meadows, rain, rivers, forests)
-    - Quiet indoor scenes (attics, greenhouses, candlelit rooms)
-    - Gentle weather (fog, snow, dusk light, breeze)
-    - Simple routines (sorting, folding, watering, sweeping)
-    - Passive observers (a cat, a lantern keeper, a gardener)
-    - Rarely: cosmic isolation or slow drifting in space (e.g. “Orbital Window”)
-
-    ❌ Avoid:
-    - Abstract words (e.g., “resonance”, “refraction”, “entropy”)
-    - Intellectual terms or metaphysical jargon
-    - Anything intense, emotional, adventurous, or ominous
-
-    🔒 Recently used stories (avoid too-similar ones):
-    {recent_titles_str if recent_titles else '(No recent stories)'}
-
-    📦 Respond strictly in this JSON format:
-    {{
-      "themes": ["theme1", "theme2", "theme3", "theme4", "theme5", "theme6", "theme7", "theme8", "theme9", "theme10"]
-    }}
-    """
-
+    
+    # Get prompt from config and format with recent stories
+    prompt = CONFIG.get('prompts', {}).get('theme', '')
+    prompt = prompt.format(recent_stories=recent_titles_str if recent_titles else '(No recent stories)')
+    
+    # Get response from model
     response = model.respond(prompt, response_format=ThemeList)
     return response.parsed["themes"]
 
 
 def generate_topics_from_theme(model, theme):
     """Generate 10 grounded, calm story topics for a selected theme."""
+    # Get recent stories to avoid repetition
     recent_titles = get_recent_stories(10)
     recent_titles_str = '\n'.join([f'• "{title}"' for title in recent_titles])
-
-    prompt = f"""
-    You are a calming creative assistant. Help generate gentle bedtime story topics
-    under the theme: "{theme}".
-
-    🎯 Task:
-    - Suggest 10 story topics that feel peaceful, slow, and easy to visualize.
-    - Focus on simple imagery: calm settings, slow natural rhythms, solitary routines.
-    - Most topics should be grounded — include only 1–2 slightly surreal or cosmic ideas if appropriate to the theme.
-    - Each topic must include a poetic **title** and a 1-sentence **summary**.
-
-    💡 Good elements to use:
-    - A quiet person or animal simply existing (e.g., feeding birds, watching clouds)
-    - Nature moving slowly (e.g., snowfall, moss growing, fog shifting)
-    - Small cozy spaces (e.g., attic, dock, greenhouse)
-    - Soft tools or objects (e.g., a broom, notebook, candle)
-    - Occasional dreamlike touches (e.g., drifting garden in orbit, forgotten telescope)
-
-    ❌ Avoid:
-    - Drama, dialogue, tension, or plot twists
-    - Vague or overly abstract titles like “Temporal Fragments” or “Resonant Thresholds”
-    - Anything hard to imagine or emotionally heavy
-
-    🔒 Recently used topics:
-    {recent_titles_str if recent_titles else '(No recent stories)'}
-
-    📦 Strictly respond in JSON:
-    {{
-      "topics": [
-        {{ "title": "topic1", "summary": "summary1" }},
-        {{ "title": "topic2", "summary": "summary2" }},
-        {{ "title": "topic3", "summary": "summary3" }},
-        {{ "title": "topic4", "summary": "summary4" }},
-        {{ "title": "topic5", "summary": "summary5" }},
-        {{ "title": "topic6", "summary": "summary6" }},
-        {{ "title": "topic7", "summary": "summary7" }},
-        {{ "title": "topic8", "summary": "summary8" }},
-        {{ "title": "topic9", "summary": "summary9" }},
-        {{ "title": "topic10", "summary": "summary10" }}
-      ]
-    }}
-    """
-
+    
+    # Get prompt from config and format with theme and recent stories
+    prompt = CONFIG.get('prompts', {}).get('topic', '')
+    prompt = prompt.format(
+        theme=theme,
+        recent_stories=recent_titles_str if recent_titles else '(No recent stories)'
+    )
+    
+    # Get response from model
     response = model.respond(prompt, response_format=Topics)
     return [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
 
 
 def compress_summary(model, text: str) -> str:
     """Compress a long summary into a concise representation to avoid repetition."""
-    prompt = f"""
-    Summarize the following story fragment into 1–2 dreamy, atmospheric sentences,
-    preserving the tone and key imagery, but avoiding repetition or specific phrasing.
-
-    Text:
-    {text.strip()}
-
-    Respond with plain text only.
-    """
+    # Get prompt from config and format with text
+    prompt = CONFIG.get('prompts', {}).get('compress_summary', '')
+    prompt = prompt.format(text=text.strip())
+    
     # Get the response as plain text without JSON parsing
     response = model.respond(prompt, response_format=None)
     # For LM Studio API, we can access the text directly
-    return str(response).strip()
+    response_text = str(response).strip()
+    return response_text
 
 
-def get_repetitive_ngrams(text: str, n=4, min_repeats=2):
+def get_repetitive_ngrams(text: str, n=None, min_repeats=None):
     """Detect repeating phrases."""
+    # Get parameters from config or use defaults
+    if n is None:
+        n = CONFIG.get('repetition_detection', {}).get('ngram', {}).get('size', 4)
+    if min_repeats is None:
+        min_repeats = CONFIG.get('repetition_detection', {}).get('ngram', {}).get('min_repeats', 2)
+    
     words = text.lower().split()
     ngrams = [" ".join(words[i:i+n]) for i in range(len(words)-n+1)]
     counter = Counter(ngrams)
     return [ng for ng, c in counter.items() if c >= min_repeats]
 
 
-def deduplicate_sentences(sentences, history, max_prefix=6):
+def deduplicate_sentences(sentences, history, max_prefix=None):
     """Filter out sentences that start too similarly to recent history."""
+    # Get parameters from config or use defaults
+    if max_prefix is None:
+        max_prefix = CONFIG.get('repetition_detection', {}).get('sentence_deduplication', {}).get('max_prefix', 5)
+    
     def starts_like(s1, s2):
         # Compare the first few words to detect similar sentence beginnings
         return " ".join(s1.split()[:max_prefix]) == " ".join(s2.split()[:max_prefix])
@@ -254,6 +205,9 @@ def generate_story(model, topic, theme=None, target_duration=None):
     """Generate a cohesive, slow-paced bedtime story from a given topic."""
     if target_duration is None:
         target_duration = CONFIG.get('story', {}).get('target_duration_minutes', 60)
+        
+    # Get model name for metadata
+    model_name = CONFIG.get('story', {}).get('model', 'unknown')
 
     chunks, all_sentences = [], []
     total_duration, cumulative_summary = 0, ""
@@ -274,6 +228,7 @@ def generate_story(model, topic, theme=None, target_duration=None):
         'topic_title': topic.title,
         'topic_summary': topic.summary,
         'theme': theme,
+        'model': model_name,  # Include model information
         'total_duration': 0,
         'sentences': []
     }, is_intermediate=True)
@@ -305,64 +260,56 @@ def generate_story(model, topic, theme=None, target_duration=None):
             
             # Track overused words
             word_counts = Counter(recent_text.lower().split())
-            frequent_words = [w for w, c in word_counts.items() if len(w) > 3 and c > 3][:5]
+            min_length = CONFIG.get('repetition_detection', {}).get('word_frequency', {}).get('min_length', 3)
+            min_frequency = CONFIG.get('repetition_detection', {}).get('word_frequency', {}).get('min_frequency', 3)
+            max_words = CONFIG.get('repetition_detection', {}).get('word_frequency', {}).get('max_words', 5)
+            
+            frequent_words = [w for w, c in word_counts.items() if len(w) > min_length and c > min_frequency][:max_words]
             if frequent_words:
                 avoid_elements += "\n🚫 Too frequent: " + ", ".join(frequent_words)
             
             # Simple detection of common phrases
             text = " ".join(all_sentences[-20:]).lower()
-            for phrase in ["dust motes", "motes of dust", "shaft of light", "beam of light", 
-                          "sunlight", "moonlight", "candlelight", "shadows", "window"]:
+            common_phrases = CONFIG.get('repetition_detection', {}).get('common_phrases', [
+                "dust motes", "motes of dust", "shaft of light", "beam of light",
+                "sunlight", "moonlight", "candlelight", "shadows", "window"
+            ])
+            for phrase in common_phrases:
                 if text.count(phrase) >= 2:
                     repetitive_elements.add(phrase)
         
         if repetitive_elements:
             avoid_elements += "\n⚠️ Avoid repeating these overused elements: " + ", ".join(repetitive_elements) + "."
 
-        prompt = f"""
-        You are a poetic narrator writing a bedtime story in quiet, meditative style.
-
-        {avoid_elements}
-
-        🎯 Objective:
-        - Calm the listener and lull them toward sleep.
-        - Maintain soft pacing, ambient imagery, gentle rhythm.
-        - Let the story feel timeless, without action or tension.
-
-        ✅ You may include **a minimal character** (e.g., she, he, they, the keeper, the painter),
-        but they must never speak or act dramatically.
-        They may watch, fold, walk, feed, tidy, drift, wait, observe.
-        Never use dialogue, conflict, or plot.
-
-        🔁 Reinforce imagery from earlier chunks to improve cohesion, but with variation.
-        ⚠️ Avoid repeating details like "dust motes", "candlelight", or "shafts of light" more than once.
-        If already described, shift attention to other textures, rhythms, or sensations in the room or outside.
-
-        ✏️ Write exactly {sentences_per_chunk} new sentences.
-        - Each sentence should be **gentle and descriptive**
-        - Limit each sentence to **fewer than 20 words**
-        - Avoid complex structures, semicolons, or long flowing clauses
-
-        📝 Then add a short summary (1–2 sentences) for just this section.
-
-        🧘‍♀️ Style:
-        - Use tactile and sensory elements: fabric, paper, wood, stone, water, breath.
-        - Let time stretch and blur — avoid strong transitions.
-        - Focus on repetition, stillness, cyclical motions, subtle changes.
-
-        Current phase: **{phase}**
-        Theme: {theme or topic.title}
-        Topic summary: {topic.summary}
-        Story essence: "{compressed_context}"
-        Recent context: "{recent_context}"
-        Last section: "{last_summary}"
-
-        Return in this exact JSON format:
-        {{
-            "sentences": ["..."],
-            "short_summary": "..."
-        }}
-        """
+        # Generate random tone modifier and focus sense for variety
+        tone_modifier = random.choice([
+            "golden dusk", "linen-soft twilight", "foggy glass morning",
+            "moonlight across old floorboards", "drifting cabin glow",
+            "warm attic haze", "still lake reflection"
+        ])
+        
+        focus_sense = random.choice([
+            "touch", "sound", "warmth", "motion", "air", "texture"
+        ])
+        
+        # Get sentence length parameters from config
+        sentence_length_target_range = CONFIG.get('story', {}).get('sentence_length_target_range', [8, 14])
+        
+        # Get prompt from config and format with all variables
+        prompt = CONFIG.get('prompts', {}).get('story', '')
+        prompt = prompt.format(
+            avoid_elements=avoid_elements,
+            sentences_per_chunk=sentences_per_chunk,
+            phase=phase,
+            theme=theme or topic.title,
+            topic=topic.summary,
+            story_essence=compressed_context,
+            recent_context=recent_context,
+            last_summary=last_summary,
+            tone_modifier=tone_modifier,
+            focus_sense=focus_sense,
+            sentence_length_target_range=sentence_length_target_range
+        )
 
 
         chunk = model.respond(prompt, response_format=StoryChunk)
@@ -376,9 +323,12 @@ def generate_story(model, topic, theme=None, target_duration=None):
             
         # Filter out sentences that are too similar to recent ones
         if len(all_sentences) > 10:
-            filtered_sentences = deduplicate_sentences(sentences, all_sentences[-20:], max_prefix=5)
+            max_prefix = CONFIG.get('repetition_detection', {}).get('sentence_deduplication', {}).get('max_prefix', 5)
+            min_keep_ratio = CONFIG.get('repetition_detection', {}).get('sentence_deduplication', {}).get('min_keep_ratio', 0.7)
+            
+            filtered_sentences = deduplicate_sentences(sentences, all_sentences[-20:], max_prefix=max_prefix)
             # Only use filtered sentences if we didn't lose too many
-            if len(filtered_sentences) >= len(sentences) * 0.7:
+            if len(filtered_sentences) >= len(sentences) * min_keep_ratio:
                 sentences = filtered_sentences
 
         # Calculate duration based on word count
@@ -393,6 +343,7 @@ def generate_story(model, topic, theme=None, target_duration=None):
             "topic_title": topic.title,
             "topic_summary": topic.summary,
             "theme": theme,
+            "model": model_name,  # Include model information
             "total_duration": total_duration,
             "sentences": all_sentences,
             "chunks": chunks,
@@ -410,6 +361,7 @@ def generate_story(model, topic, theme=None, target_duration=None):
         "topic_title": topic.title,
         "topic_summary": topic.summary,
         "theme": theme,
+        "model": model_name,  # Include model information
         "total_duration": total_duration,
         "sentence_count": len(all_sentences),
         "sentences": all_sentences,
@@ -449,6 +401,7 @@ def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
     yaml_data = {
         'topic_title': story_data['topic_title'],
         'topic_summary': story_data['topic_summary'],
+        'model': story_data.get('model', CONFIG.get('story', {}).get('model', 'unknown')),  # Include model information
         'total_duration': story_data['total_duration'],
         'sentence_count': len(story_data['sentences']),
         'sentences': story_data['sentences']

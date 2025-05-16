@@ -22,19 +22,20 @@ story:
   # Target duration in minutes (story will continue generating until this is reached)
   target_duration_minutes: 60
   # LLM model to use
-  model: "gemma-3-12b-it-qat"
+  model: "longwriter-llama3.1-8b"
   # Maximum tokens per LLM request
-  max_tokens_per_chunk: 1500
+  max_tokens_per_chunk: 3000
   # Temperature for generation (higher = more creative, lower = more focused)
   temperature: 0.7
   # Number of words per chunk when generating the story
-  chunk_size: 750
+  chunk_size: 1500
   # Number of words to keep as context from previous chunks
-  context_size: 300
+  context_size: 600
   # Average duration of each word in seconds (e.g., 0.75 seconds per word)
   word_duration_seconds: 0.75
   # Number of sentences to generate per chunk
-  sentences_per_chunk: 15
+  sentences_per_chunk: 30
+  sentence_length_target_range: [64, 96]  # 🚨 NEW: typical word count range
 
 # Voice Generation Configuration
 voice:
@@ -93,6 +94,200 @@ voice:
     # Rubberband configuration for high-quality tempo manipulation
     rubberband:
       path: "C:\\Dev\\rubberband-4.0.0-gpl-executable-windows\\rubberband.exe"  # Path to rubberband executable
+
+# LLM Prompts Configuration
+prompts:
+  # Theme generation prompt
+  theme: |
+    You are a poetic assistant creating diverse, calming storytelling themes
+    for a bedtime story generator.
+
+    🎯 Your task:
+    - Generate exactly 10 unique themes.
+    - Each should inspire peaceful, slow, atmospheric stories.
+    - Make them **visually intuitive** (scenes, objects, moods) and **emotionally neutral**.
+    - Most themes should feel grounded or nature-based, but it's OK to include 1 space-themed or slightly surreal theme.
+
+    💡 Source inspiration from:
+    - Soft natural environments (meadows, rain, rivers, forests)
+    - Quiet indoor scenes (attics, greenhouses, candlelit rooms)
+    - Gentle weather (fog, snow, dusk light, breeze)
+    - Simple routines (sorting, folding, watering, sweeping)
+    - Passive observers (a cat, a lantern keeper, a gardener)
+    - Rarely: cosmic isolation or slow drifting in space (e.g. "Orbital Window")
+
+    ❌ Avoid:
+    - Abstract words (e.g., "resonance", "refraction", "entropy")
+    - Intellectual terms or metaphysical jargon
+    - Anything intense, emotional, adventurous, or ominous
+
+    🔒 Recently used stories (avoid too-similar ones):
+    {recent_stories}
+
+    📦 Respond strictly in this JSON format:
+    {{
+      "themes": ["theme1", "theme2", "theme3", "theme4", "theme5", "theme6", "theme7", "theme8", "theme9", "theme10"]
+    }}
+
+  # Topic generation prompt
+  topic: |
+    You are a calming creative assistant. Help generate gentle bedtime story topics
+    under the theme: "{theme}".
+
+    🎯 Task:
+    - Suggest 10 story topics that feel peaceful, slow, and easy to visualize.
+    - Focus on simple imagery: calm settings, slow natural rhythms, solitary routines.
+    - Most topics should be grounded — include only 1–2 slightly surreal or cosmic ideas if appropriate to the theme.
+    - Each topic must include a poetic **title** and a 1-sentence **summary**.
+
+    💡 Good elements to use:
+    - A quiet person or animal simply existing (e.g., feeding birds, watching clouds)
+    - Nature moving slowly (e.g., snowfall, moss growing, fog shifting)
+    - Small cozy spaces (e.g., attic, dock, greenhouse)
+    - Soft tools or objects (e.g., a broom, notebook, candle)
+    - Occasional dreamlike touches (e.g., drifting garden in orbit, forgotten telescope)
+
+    ❌ Avoid:
+    - Drama, dialogue, tension, or plot twists
+    - Vague or overly abstract titles like "Temporal Fragments" or "Resonant Thresholds"
+    - Anything hard to imagine or emotionally heavy
+
+    🔒 Recently used topics:
+    {recent_stories}
+
+    📦 Strictly respond in JSON:
+    {{
+      "topics": [
+        {{ "title": "topic1", "summary": "summary1" }},
+        {{ "title": "topic2", "summary": "summary2" }},
+        {{ "title": "topic3", "summary": "summary3" }},
+        {{ "title": "topic4", "summary": "summary4" }},
+        {{ "title": "topic5", "summary": "summary5" }},
+        {{ "title": "topic6", "summary": "summary6" }},
+        {{ "title": "topic7", "summary": "summary7" }},
+        {{ "title": "topic8", "summary": "summary8" }},
+        {{ "title": "topic9", "summary": "summary9" }},
+        {{ "title": "topic10", "summary": "summary10" }}
+      ]
+    }}
+
+  # Summary compression prompt
+  compress_summary: |
+    Gently compress the following story fragment into 1–2 calm, poetic sentences.
+
+    🎯 Focus on:
+    - Preserving the ambient mood and soft sensory tone
+    - Maintaining a timeless, slow-motion feel
+    - Recasting repeated details into more abstract or varied phrasing
+    - Letting the summary feel like a moment suspended in breath
+
+    ❌ Avoid:
+    - Action, conflict, dialogue, urgency
+    - Literal phrasing or complex sentence structure
+
+    📝 Tone: dreamy, slightly removed, meditative — like describing a memory fading into sleep.
+
+    Text:
+    {text}
+
+    Respond with plain text only — no quotes or bullet points.
+
+
+  # Story generation prompt
+  story: |
+    You are a poetic narrator writing a bedtime story in quiet, meditative style.
+
+    {avoid_elements}
+
+    🎯 Objective:
+    - Calm the listener and lull them toward sleep.
+    - Maintain soft pacing, ambient imagery, and a gentle rhythm.
+    - Let the story feel timeless — with no plot, urgency, or conflict.
+
+    ✅ You may include **a minimal character** (e.g., she, he, they, the keeper, the painter),
+    but they must never speak or act dramatically.
+    They may watch, fold, walk, feed, tidy, drift, wait, or observe.
+    Never use dialogue, plot twists, or emotional tension.
+
+    🔁 Reinforce imagery from earlier chunks to maintain cohesion, but vary your descriptions.
+    ⚠️ Avoid overused phrases like "dust motes", "candlelight", or "shafts of light" more than once.
+
+    🧘‍♀️ Style:
+    - Use tactile and sensory imagery: fabric, paper, wood, stone, water, breath.
+    - Let time blur and stretch — avoid strong transitions or complex sequences.
+    - Focus on repetition, stillness, cyclical motion, and subtle details.
+    - Occasionally include a **single-word sentence** for emphasis (e.g., "Stillness.", "Warmth.").
+    - Use mirrored rhythm occasionally (e.g., "She folds. She breathes. She waits.").
+
+    ✏️ Sentence Constraints:
+    - Write exactly **{sentences_per_chunk}** new sentences.
+    - Each sentence MUST contain fewer than **{sentence_length_target_range[1]} words**.
+    - Most sentences should fall between **{sentence_length_target_range[0]} and {sentence_length_target_range[1]} words**.
+    - Avoid semicolons, run-ons, or multi-clause sentences.
+    - Keep the language simple, concrete, and quietly descriptive.
+
+    🌿 Optional sensory focus: *{focus_sense}*  
+    - If present, gently emphasize that sensory mode (e.g., texture, sound, light) in this section.
+
+    🎨 Ambient tone hint: *{tone_modifier}*  
+    - Use this as a subtle emotional backdrop (e.g., "foggy glass morning", "quiet lanternlight").
+
+    🔁 If a natural loop or stillness emerges, it’s okay to suggest: [Potential chapter end]
+
+    📚 Story Essence: {story_essence}
+    🎨 Theme: {theme}
+    📖 Topic: {topic}
+
+    Recent context: "{recent_context}"
+    Last section: "{last_summary}"
+
+    📝 At the end, include a **short summary (1–2 gentle sentences)** of this section.
+
+    Return in this exact JSON format:
+    {{
+      "sentences": ["..."],
+      "short_summary": "..."
+    }}
+
+
+# Directory Configuration
+directories:
+  # Base output directory (relative to project root)
+  output: "output"
+  # Directory for story output files (relative to output directory)
+  stories: "stories"
+  # Directory for audio files (relative to output directory)
+  audio: "audio"
+  # Directory for video files (relative to output directory)
+  video: "video"
+
+# Repetition Detection Configuration
+repetition_detection:
+  # Common phrases to detect and avoid repeating
+  common_phrases: [
+    "dust motes", "motes of dust", "shaft of light", "beam of light", 
+    "sunlight", "moonlight", "candlelight", "shadows", "window"
+  ]
+  # N-gram analysis parameters
+  ngram:
+    # Size of n-grams to detect
+    size: 4
+    # Minimum number of repeats to flag
+    min_repeats: 2
+  # Word frequency parameters
+  word_frequency:
+    # Minimum word length to consider
+    min_length: 3
+    # Minimum frequency to flag
+    min_frequency: 3
+    # Maximum number of frequent words to report
+    max_words: 5
+  # Sentence deduplication parameters
+  sentence_deduplication:
+    # Maximum prefix length to compare
+    max_prefix: 5
+    # Minimum ratio of sentences to keep after filtering
+    min_keep_ratio: 0.7
 
 # Video Generation Configuration
 video:
