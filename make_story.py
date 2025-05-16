@@ -201,13 +201,14 @@ def deduplicate_sentences(sentences, history, max_prefix=None):
     return [s for s in sentences if all(not starts_like(s, h) for h in history)]
 
 
-def generate_story(model, topic, theme=None, target_duration=None):
+def generate_story(model, topic, theme=None, target_duration=None, model_name=None):
     """Generate a cohesive, slow-paced bedtime story from a given topic."""
     if target_duration is None:
         target_duration = CONFIG.get('story', {}).get('target_duration_minutes', 60)
         
     # Get model name for metadata
-    model_name = CONFIG.get('story', {}).get('model', 'unknown')
+    if model_name is None:
+        model_name = CONFIG.get('story', {}).get('model', 'unknown')
 
     chunks, all_sentences = [], []
     total_duration, cumulative_summary = 0, ""
@@ -542,7 +543,7 @@ def main():
                 theme = selected_theme
             
             # Stage 3: Generate the story
-            story_data = generate_story(model, topic, theme, target_duration)
+            story_data = generate_story(model, topic, theme, target_duration, model_name=model_name)
             
             print(f"✅ Generated story with {len(story_data['sentences'])} sentences, total ~{story_data['total_duration']} minutes")
         
