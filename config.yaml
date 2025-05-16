@@ -32,7 +32,7 @@ story:
   # Number of words to keep as context from previous chunks
   context_size: 600
   # Average duration of each word in seconds (e.g., 0.75 seconds per word)
-  word_duration_seconds: 0.75
+  word_duration_seconds: 0.45
   # Number of sentences to generate per chunk
   sentences_per_chunk: 30
   sentence_length_target_range: [64, 96]  # 🚨 NEW: typical word count range
