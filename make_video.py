@@ -278,10 +278,56 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     background_clip = VideoFileClip(background_path, audio=False)
     log("Loading background video without audio", "🔇")
     
+    # Get crossfade duration from config (default 0.0 = disabled)
+    crossfade_duration = CONFIG.get('video', {}).get('crossfade_duration', 0.0)
+    
     # Loop the background video if it's shorter than the audio
     if background_clip.duration < audio_duration:
         log(f"Background video ({background_clip.duration:.2f}s) is shorter than audio ({audio_duration:.2f}s), will loop", "🔄")
-        background_clip = background_clip.loop(duration=audio_duration)
+        
+        # If crossfade is enabled (duration > 0), create a crossfade loop
+        if crossfade_duration > 0 and background_clip.duration > crossfade_duration * 2:
+            log(f"Applying crossfade of {crossfade_duration:.2f}s for smoother looping", "🔀")
+            
+            # Create a clip for the beginning portion to be used at the end for crossfade
+            start_clip = background_clip.subclip(0, crossfade_duration)
+            
+            # Create a clip for the end portion to be used at the beginning for crossfade
+            end_clip = background_clip.subclip(background_clip.duration - crossfade_duration, background_clip.duration)
+            
+            # Create the main clip without the end portion that will be crossfaded
+            main_clip = background_clip.subclip(0, background_clip.duration - crossfade_duration)
+            
+            # Calculate how many full loops we need (not including crossfades)
+            remaining_duration = audio_duration - main_clip.duration
+            num_full_loops = int(remaining_duration / main_clip.duration)
+            
+            # Create a list to hold all the clips
+            clips = []
+            
+            # Add the first clip with crossfade from the end
+            clips.append(CompositeVideoClip([
+                end_clip.set_start(0),
+                main_clip.set_start(0)
+            ]).crossfadeout(crossfade_duration))
+            
+            # Add full loops as needed
+            current_time = main_clip.duration
+            for i in range(num_full_loops):
+                clips.append(main_clip.set_start(current_time))
+                current_time += main_clip.duration
+            
+            # Add the final clip with crossfade to the beginning if needed
+            remaining_time = audio_duration - current_time
+            if remaining_time > 0:
+                final_clip = main_clip.subclip(0, min(remaining_time + crossfade_duration, main_clip.duration))
+                clips.append(final_clip.set_start(current_time).crossfadein(crossfade_duration))
+            
+            # Combine all clips
+            background_clip = CompositeVideoClip(clips, size=background_clip.size).set_duration(audio_duration)
+        else:
+            # Use the standard loop method if crossfade is disabled
+            background_clip = background_clip.loop(duration=audio_duration)
     else:
         # Trim the background video if it's longer than the audio
         log(f"Background video ({background_clip.duration:.2f}s) is longer than audio ({audio_duration:.2f}s), will trim", "✂️")
@@ -298,7 +344,25 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
         # Loop the music if it's shorter than the audio
         if music_clip.duration < audio_duration:
             log(f"Music ({music_clip.duration:.2f}s) is shorter than audio ({audio_duration:.2f}s), will loop", "🔄")
-            music_clip = music_clip.loop(duration=audio_duration)
+            
+            # Create a custom looped music clip by concatenating multiple copies
+            music_duration = music_clip.duration
+            num_loops_needed = int(audio_duration / music_duration) + 1
+            
+            # Create a list of music clips to concatenate
+            music_clips = []
+            for i in range(num_loops_needed):
+                # For all except the last clip, use the full duration
+                if i < num_loops_needed - 1:
+                    music_clips.append(music_clip)
+                else:
+                    # For the last clip, only use what's needed to reach the target duration
+                    remaining_duration = audio_duration - (i * music_duration)
+                    if remaining_duration > 0:
+                        music_clips.append(music_clip.subclip(0, min(remaining_duration, music_duration)))
+            
+            # Concatenate all music clips
+            music_clip = concatenate_audioclips(music_clips)
         else:
             # Trim the music if it's longer than the audio
             log(f"Music ({music_clip.duration:.2f}s) is longer than audio ({audio_duration:.2f}s), will trim", "✂️")
