@@ -435,6 +435,8 @@ def parse_args():
     parser.add_argument("-d", "--duration", type=int, help="Target duration in minutes")
     parser.add_argument("-c", "--count", type=int, default=1, help="Number of stories to generate")
     parser.add_argument("-m", "--model", help="Model name or URL of the LM Studio API")
+    parser.add_argument("--scale", type=float, default=1.0, 
+                        help="Scale factor for max_tokens_per_chunk, chunk_size, context_size, and sentences_per_chunk")
     parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
     parser.add_argument("--length", choices=['short', 'medium', 'long'], default='medium',
                         help="Story length preset (affects pacing and detail level)")
@@ -470,6 +472,29 @@ def main():
     
     # Get story parameters
     target_duration = args.duration or CONFIG.get('story', {}).get('target_duration_minutes', 60)
+    
+    # Apply scale factor to size-related parameters if provided
+    if args.scale != 1.0:
+        scale = args.scale
+        print(f"🔍 Applying scale factor: {scale}")
+        
+        # Scale the parameters in the CONFIG
+        if 'story' in CONFIG:
+            if 'max_tokens_per_chunk' in CONFIG['story']:
+                CONFIG['story']['max_tokens_per_chunk'] = int(CONFIG['story']['max_tokens_per_chunk'] * scale)
+                print(f"  - max_tokens_per_chunk: {CONFIG['story']['max_tokens_per_chunk']}")
+                
+            if 'chunk_size' in CONFIG['story']:
+                CONFIG['story']['chunk_size'] = int(CONFIG['story']['chunk_size'] * scale)
+                print(f"  - chunk_size: {CONFIG['story']['chunk_size']}")
+                
+            if 'context_size' in CONFIG['story']:
+                CONFIG['story']['context_size'] = int(CONFIG['story']['context_size'] * scale)
+                print(f"  - context_size: {CONFIG['story']['context_size']}")
+                
+            if 'sentences_per_chunk' in CONFIG['story']:
+                CONFIG['story']['sentences_per_chunk'] = int(CONFIG['story']['sentences_per_chunk'] * scale)
+                print(f"  - sentences_per_chunk: {CONFIG['story']['sentences_per_chunk']}")
     
     try:
         # 3-stage generation pipeline
