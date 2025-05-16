@@ -257,7 +257,8 @@ def generate_story(model, topic, theme=None, target_duration=None):
 
     chunks, all_sentences = [], []
     total_duration, cumulative_summary = 0, ""
-    sentences_per_chunk = CONFIG.get('story', {}).get('sentences_per_chunk', 10)
+    sentences_per_chunk = CONFIG.get('story', {}).get('sentences_per_chunk', 20)
+    word_duration_seconds = CONFIG.get('story', {}).get('word_duration_seconds', 0.75)
     
     # Keep track of common repetitive phrases to avoid
     repetitive_elements = set()
@@ -375,7 +376,9 @@ def generate_story(model, topic, theme=None, target_duration=None):
             if len(filtered_sentences) >= len(sentences) * 0.7:
                 sentences = filtered_sentences
 
-        chunk_duration = len(sentences) * CONFIG.get('story', {}).get('sentence_duration_minutes', 0.13)
+        # Calculate duration based on word count
+        word_count = sum(len(sentence.split()) for sentence in sentences)
+        chunk_duration = (word_count * word_duration_seconds) / 60  # Convert to minutes
         chunks.append({"sentences": sentences, "short_summary": chunk.parsed.get("short_summary", "")})
         total_duration += chunk_duration
         all_sentences.extend(sentences)

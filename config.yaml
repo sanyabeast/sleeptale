@@ -31,8 +31,8 @@ story:
   chunk_size: 1000
   # Number of words to keep as context from previous chunks
   context_size: 400
-  # Average duration of each sentence in minutes (e.g., 0.13 = 7.8 seconds)
-  sentence_duration_minutes: 0.14
+  # Average duration of each word in seconds (e.g., 0.75 seconds per word)
+  word_duration_seconds: 0.75
   # Number of sentences to generate per chunk
   sentences_per_chunk: 20
 
