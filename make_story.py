@@ -323,7 +323,7 @@ def generate_story(model, topic, theme=None, target_duration=None):
         You are a poetic narrator writing a bedtime story in quiet, meditative style.
 
         {avoid_elements}
-        
+
         🎯 Objective:
         - Calm the listener and lull them toward sleep.
         - Maintain soft pacing, ambient imagery, gentle rhythm.
@@ -338,6 +338,13 @@ def generate_story(model, topic, theme=None, target_duration=None):
         ⚠️ Avoid repeating details like "dust motes", "candlelight", or "shafts of light" more than once.
         If already described, shift attention to other textures, rhythms, or sensations in the room or outside.
 
+        ✏️ Write exactly {sentences_per_chunk} new sentences.
+        - Each sentence should be **gentle and descriptive**
+        - Limit each sentence to **fewer than 20 words**
+        - Avoid complex structures, semicolons, or long flowing clauses
+
+        📝 Then add a short summary (1–2 sentences) for just this section.
+
         🧘‍♀️ Style:
         - Use tactile and sensory elements: fabric, paper, wood, stone, water, breath.
         - Let time stretch and blur — avoid strong transitions.
@@ -350,15 +357,13 @@ def generate_story(model, topic, theme=None, target_duration=None):
         Recent context: "{recent_context}"
         Last section: "{last_summary}"
 
-        ✏️ Write exactly {sentences_per_chunk} new slow, descriptive sentences.
-        📝 Then add a short summary (1–2 sentences) for just this section.
-
         Return in this exact JSON format:
         {{
-          "sentences": ["..."],
-          "short_summary": "..."
+            "sentences": ["..."],
+            "short_summary": "..."
         }}
         """
+
 
         chunk = model.respond(prompt, response_format=StoryChunk)
         if not isinstance(chunk.parsed, dict) or "sentences" not in chunk.parsed:

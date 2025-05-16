@@ -24,17 +24,17 @@ story:
   # LLM model to use
   model: "gemma-3-12b-it-qat"
   # Maximum tokens per LLM request
-  max_tokens_per_chunk: 2000
+  max_tokens_per_chunk: 1500
   # Temperature for generation (higher = more creative, lower = more focused)
   temperature: 0.7
   # Number of words per chunk when generating the story
-  chunk_size: 1000
+  chunk_size: 750
   # Number of words to keep as context from previous chunks
-  context_size: 400
+  context_size: 300
   # Average duration of each word in seconds (e.g., 0.75 seconds per word)
   word_duration_seconds: 0.75
   # Number of sentences to generate per chunk
-  sentences_per_chunk: 20
+  sentences_per_chunk: 15
 
 # Voice Generation Configuration
 voice:
