@@ -43,8 +43,33 @@ It combines:
 - **Configurable Quality**  
   Adjustable video quality settings (e.g., `-q 0.25` for lower resolution) for different device requirements.
 
+- **Video Looping Utility**  
+  Create seamlessly loopable videos from any source video using the `utils/make_loopable.py` script with customizable crossfade duration.
+
 - **Simplified Configuration**  
   Uses a single `config.yaml` file in the root directory for all settings.
+
+---
+
+## 🛠️ Utility Scripts
+
+### Make Loopable Videos
+
+The `make_loopable.py` utility in the `utils` directory helps create seamlessly loopable videos by crossfading the end with the beginning:
+
+```bash
+python utils/make_loopable.py input_directory output_directory [--duration SECONDS]
+```
+
+**Parameters:**
+- `input_directory`: Directory containing input videos
+- `output_directory`: Directory to save processed videos
+- `--duration`: Duration of the crossfade segment in seconds (default: 5.0)
+- `--bitrate`: Override video bitrate (e.g., '4M')
+- `--preset`: Encoding preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
+- `--crf`: Constant Rate Factor (0-51, lower = better quality)
+
+This utility is useful for creating background videos that can loop continuously without noticeable transitions.
 
 ---
 

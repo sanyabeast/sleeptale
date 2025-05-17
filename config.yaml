@@ -69,7 +69,7 @@ voice:
     # Base URL for the StyleTTS2 API
     base_url: "http://127.0.0.1:7860"
     # Voice presets to use (chosen randomly for each voice line)
-    voice_presets: ["CalmDude2", "CalmGal2"]
+    voice_presets: ["CalmDude2", "CalmGal3"]
     speed: 100
     # Number of sentences to combine into a single voice line
     sentences_per_voice_line: 1
@@ -326,6 +326,12 @@ video:
   music_volume: 0.5
   # Video resolution (width x height) - used for quality scaling
   resolution: "1280x720"
+  # Fade in duration from black at the start of video (in seconds, 0.0 = disabled)
+  fade_in_duration: 3.0
+  # Fade out duration to black at the end of video (in seconds, 0.0 = disabled)
+  fade_out_duration: 3.0
+  # Crossfade duration for looping background video (in seconds, 0.0 = disabled)
+  crossfade_duration: 5.0
   # Video encoding settings
   encoding:
     # Video codec (e.g., libx264, hevc_nvenc for NVIDIA GPU acceleration)

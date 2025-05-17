@@ -381,6 +381,18 @@ def create_video_from_story(story_name, output_path=None, quality=1080, force=Fa
     # Set the audio of the background clip
     video_with_audio = background_clip.set_audio(final_audio)
     
+    # Apply fade in and fade out effects if configured
+    fade_in_duration = CONFIG.get('video', {}).get('fade_in_duration', 0.0)
+    fade_out_duration = CONFIG.get('video', {}).get('fade_out_duration', 0.0)
+    
+    if fade_in_duration > 0:
+        log(f"Applying fade in from black: {fade_in_duration:.2f}s", "🌅")
+        video_with_audio = video_with_audio.fadein(fade_in_duration)
+        
+    if fade_out_duration > 0:
+        log(f"Applying fade out to black: {fade_out_duration:.2f}s", "🌆")
+        video_with_audio = video_with_audio.fadeout(fade_out_duration)
+    
     # Create the output directory if it doesn't exist
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
