@@ -22,7 +22,7 @@ story:
   # Target duration in minutes (story will continue generating until this is reached)
   target_duration_minutes: 60
   # LLM model to use
-  model: "longwriter-llama3.1-8b"
+  model: "silicon-maid-7b"
   # Maximum tokens per LLM request
   max_tokens_per_chunk: 3000
   # Temperature for generation (higher = more creative, lower = more focused)
@@ -251,27 +251,42 @@ prompts:
 # Video Configuration
 video:
   # Start delay in seconds (silence before the first voice line)
-  start_delay: 2.0
+  start_delay: 5.0
   # End delay in seconds (silence after the last voice line)
   end_delay: 10.0
   # Minimum delay between voice lines in seconds
-  line_delay_min: 0.65
+  line_delay_min: 0.75
   # Maximum delay between voice lines in seconds
-  line_delay_max: 0.9
+  line_delay_max: 1.25
   # Background music volume relative to voice (0.0-1.0)
-  music_volume: 0.33
+  music_volume: 0.4
   # Crossfade duration in seconds for looping background video (0 = disabled)
-  crossfade_duration: 5.0
+  crossfade_duration: 0.0
+  # Fade in duration from black at the start of video (in seconds, 0.0 = disabled)
+  fade_in_duration: 3.0
+  # Fade out duration to black at the end of video (in seconds, 0.0 = disabled)
+  fade_out_duration: 3.0
+  # Video resolution (width x height) - used for quality scaling
+  resolution: "1280x720"
   # Video encoding settings
   encoding:
+    # Video codec (e.g., libx264, hevc_nvenc for NVIDIA GPU acceleration)
     video_codec: "libx264"
-    video_bitrate: "2M"
+    # Video bitrate
+    video_bitrate: "4M"
+    # Audio codec
     audio_codec: "aac"
+    # Audio bitrate
     audio_bitrate: "128k"
+    # Frames per second
     fps: 24
+    # Number of threads to use (0 = auto)
     threads: 0
+    # Encoding preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
     preset: "ultrafast"
+    # Encoding tune (film, animation, grain, stillimage, fastdecode, zerolatency)
     tune: "fastdecode"
+    # Constant Rate Factor (0-51, lower = better quality, higher = smaller file)
     crf: 28
 
 # Directory Configuration
@@ -313,42 +328,4 @@ repetition_detection:
     # Minimum ratio of sentences to keep after filtering
     min_keep_ratio: 0.7
 
-# Video Generation Configuration
-video:
-  # Delay before voice lines start playing (in seconds)
-  start_delay: 5.0
-  # Delay after voice lines finish (in seconds)
-  end_delay: 10.0
-  # Delay range between each voice line (in seconds)
-  line_delay_min: 0.75
-  line_delay_max: 1.25
-  # Background music volume (relative to voice lines, 0.0-1.0)
-  music_volume: 0.5
-  # Video resolution (width x height) - used for quality scaling
-  resolution: "1280x720"
-  # Fade in duration from black at the start of video (in seconds, 0.0 = disabled)
-  fade_in_duration: 3.0
-  # Fade out duration to black at the end of video (in seconds, 0.0 = disabled)
-  fade_out_duration: 3.0
-  # Crossfade duration for looping background video (in seconds, 0.0 = disabled)
-  crossfade_duration: 5.0
-  # Video encoding settings
-  encoding:
-    # Video codec (e.g., libx264, hevc_nvenc for NVIDIA GPU acceleration)
-    video_codec: "libx264"
-    # Video bitrate
-    video_bitrate: "4M"
-    # Audio codec
-    audio_codec: "aac"
-    # Audio bitrate
-    audio_bitrate: "128k"
-    # Frames per second
-    fps: 24
-    # Number of threads to use (0 = auto)
-    threads: 0
-    # Encoding preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
-    preset: "ultrafast"
-    # Encoding tune (film, animation, grain, stillimage, fastdecode, zerolatency)
-    tune: "fastdecode"
-    # Constant Rate Factor (0-51, lower = better quality, higher = smaller file)
-    crf: 28
+
