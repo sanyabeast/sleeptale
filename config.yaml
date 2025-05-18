@@ -259,7 +259,7 @@ video:
   # Maximum delay between voice lines in seconds
   line_delay_max: 1.25
   # Background music volume relative to voice (0.0-1.0)
-  music_volume: 0.4
+  music_volume: 0.46
   # Crossfade duration in seconds for looping background video (0 = disabled)
   crossfade_duration: 0.0
   # Fade in duration from black at the start of video (in seconds, 0.0 = disabled)
