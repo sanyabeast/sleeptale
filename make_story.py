@@ -32,6 +32,20 @@ class Topics(BaseModel):
 class ThemeList(BaseModel):
     themes: list[str]
 
+class Character(BaseModel):
+    name: str
+    role: str
+    description: str = ""
+
+class Chapters(BaseModel):
+    exposition: str
+    climax: str
+    resolution: str
+
+class StoryOutline(BaseModel):
+    characters: list[Character]
+    chapters: Chapters
+
 def load_config():
     """Load configuration from config.yaml file."""
     try:
@@ -160,6 +174,40 @@ def generate_topics_from_theme(model, theme):
     return [Topic(**topic_dict) for topic_dict in response.parsed["topics"]]
 
 
+def generate_story_outline(model, topic, theme=None):
+    """Generate a structured outline with characters and three-chapter structure."""
+    print(f"📋 Generating story outline for {topic.title}...")
+    
+    # Get prompt from config and format with theme and topic
+    prompt = CONFIG.get('prompts', {}).get('outline', '')
+    prompt = prompt.format(
+        theme=theme or "",
+        topic=topic.summary
+    )
+    
+    # Get response from model
+    response = model.respond(prompt, response_format=StoryOutline)
+    outline = response.parsed
+    
+    # Extract character names safely - handle both object and dictionary access
+    character_names = []
+    for char in outline['characters']:
+        if isinstance(char, dict):
+            character_names.append(char.get('name', 'Unknown'))
+        else:
+            try:
+                character_names.append(char.name)
+            except AttributeError:
+                character_names.append('Unknown')
+    
+    # Print outline summary
+    print(f"👥 Characters: {', '.join(character_names)}")
+    print(f"📖 Exposition: {outline['chapters']['exposition'][:50]}...")
+    print(f"📈 Climax: {outline['chapters']['climax'][:50]}...")
+    print(f"📉 Resolution: {outline['chapters']['resolution'][:50]}...")
+    
+    return outline
+
 def compress_summary(model, text: str) -> str:
     """Compress a long summary into a concise representation to avoid repetition."""
     # Get prompt from config and format with text
@@ -173,36 +221,11 @@ def compress_summary(model, text: str) -> str:
     return response_text
 
 
-def get_repetitive_ngrams(text: str, n=None, min_repeats=None):
-    """Detect repeating phrases."""
-    # Get parameters from config or use defaults
-    if n is None:
-        n = CONFIG.get('repetition_detection', {}).get('ngram', {}).get('size', 4)
-    if min_repeats is None:
-        min_repeats = CONFIG.get('repetition_detection', {}).get('ngram', {}).get('min_repeats', 2)
-    
-    words = text.lower().split()
-    ngrams = [" ".join(words[i:i+n]) for i in range(len(words)-n+1)]
-    counter = Counter(ngrams)
-    return [ng for ng, c in counter.items() if c >= min_repeats]
-
-
-def deduplicate_sentences(sentences, history, max_prefix=None):
-    """Filter out sentences that start too similarly to recent history."""
-    # Get parameters from config or use defaults
-    if max_prefix is None:
-        max_prefix = CONFIG.get('repetition_detection', {}).get('sentence_deduplication', {}).get('max_prefix', 5)
-    
-    def starts_like(s1, s2):
-        # Compare the first few words to detect similar sentence beginnings
-        return " ".join(s1.split()[:max_prefix]) == " ".join(s2.split()[:max_prefix])
-    
-    # Only keep sentences that don't start like any in the history
-    return [s for s in sentences if all(not starts_like(s, h) for h in history)]
+# Removed repetition detection functions as they were deemed overengineering
 
 
 def generate_story(model, topic, theme=None, target_duration=None, model_name=None):
-    """Generate a cohesive, slow-paced bedtime story from a given topic."""
+    """Generate a cohesive, slow-paced bedtime story from a given topic using a three-chapter structure."""
     if target_duration is None:
         target_duration = CONFIG.get('story', {}).get('target_duration_minutes', 60)
         
@@ -210,13 +233,49 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
     if model_name is None:
         model_name = CONFIG.get('story', {}).get('model', 'unknown')
 
+    # Generate story outline with characters and chapters
+    outline = generate_story_outline(model, topic, theme)
+
+    # Get chapter weights from config
+    chapter_weights = CONFIG.get('story', {}).get('chapter_weights', {
+        'exposition': 0.3, 
+        'climax': 0.5, 
+        'resolution': 0.2
+    })
+    
+    # Calculate target duration for each chapter
+    chapter_durations = {
+        'exposition': target_duration * chapter_weights['exposition'],
+        'climax': target_duration * chapter_weights['climax'],
+        'resolution': target_duration * chapter_weights['resolution']
+    }
+    
+    print(f"📊 Chapter durations (minutes):")
+    print(f"📖 Exposition: {chapter_durations['exposition']:.1f}")
+    print(f"📈 Climax: {chapter_durations['climax']:.1f}")
+    print(f"📉 Resolution: {chapter_durations['resolution']:.1f}")
+
     chunks, all_sentences = [], []
     total_duration, cumulative_summary = 0, ""
     sentences_per_chunk = CONFIG.get('story', {}).get('sentences_per_chunk', 20)
     word_duration_seconds = CONFIG.get('story', {}).get('word_duration_seconds', 0.75)
     
-    # Keep track of common repetitive phrases to avoid
-    repetitive_elements = set()
+    # Removed repetition detection logic as requested
+
+    # Extract and format character information safely
+    characters_info = []
+    for char in outline['characters']:
+        if isinstance(char, dict):
+            name = char.get('name', 'Unknown')
+            role = char.get('role', 'Unknown role')
+            characters_info.append(f"{name} ({role})")
+        else:
+            try:
+                characters_info.append(f"{char.name} ({char.role})")
+            except AttributeError:
+                characters_info.append('Unknown character')
+    
+    characters_info = ", ".join(characters_info)
 
     print(f"🛌 Generating story: {topic.title}")
     print(f"📝 Summary: {topic.summary}")
@@ -224,19 +283,36 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
         print(f"🎨 Theme: {theme}")
     print(f"⏱️ Target: {target_duration} min")
 
+    # Track the current chapter and chapter-specific duration
+    current_chapter = "exposition"
+    chapter_duration = 0
+
     # Create initial save path
     story_path = save_story_yaml({
         'topic_title': topic.title,
         'topic_summary': topic.summary,
         'theme': theme,
-        'model': model_name,  # Include model information
+        'model': model_name,
+        'outline': outline,
+        'chapter_weights': chapter_weights,
         'total_duration': 0,
         'sentences': []
     }, is_intermediate=True)
 
     while total_duration < target_duration:
+        # Determine story phase
         remaining = target_duration - total_duration
         phase = "start" if total_duration == 0 else "finish" if remaining <= 5 else "continue"
+        
+        # Check for chapter transitions
+        if current_chapter == "exposition" and chapter_duration >= chapter_durations["exposition"]:
+            current_chapter = "climax"
+            chapter_duration = 0
+            print(f"🔄 Transitioning to chapter: 📈 {current_chapter.upper()}")
+        elif current_chapter == "climax" and chapter_duration >= chapter_durations["climax"]:
+            current_chapter = "resolution"
+            chapter_duration = 0
+            print(f"🔄 Transitioning to chapter: 📉 {current_chapter.upper()}")
         
         # Compress the cumulative summary every few chunks to avoid repetition
         compressed_context = cumulative_summary
@@ -249,49 +325,56 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
         recent_context = " ".join(all_sentences[-5:]) or topic.summary
         last_summary = chunks[-1]['short_summary'] if chunks else topic.summary
         
-        # Identify repetitive elements to avoid
+        # Repetition detection logic removed as requested
         avoid_elements = ""
-        if len(all_sentences) > 10:
-            recent_text = " ".join(all_sentences[-20:])
-            
-            # Detect repetitive phrases using n-grams
-            repeated = get_repetitive_ngrams(recent_text)
-            if repeated:
-                avoid_elements += "\n⚠️ Avoid repeating these ideas: " + ", ".join(repeated)
-            
-            # Track overused words
-            word_counts = Counter(recent_text.lower().split())
-            min_length = CONFIG.get('repetition_detection', {}).get('word_frequency', {}).get('min_length', 3)
-            min_frequency = CONFIG.get('repetition_detection', {}).get('word_frequency', {}).get('min_frequency', 3)
-            max_words = CONFIG.get('repetition_detection', {}).get('word_frequency', {}).get('max_words', 5)
-            
-            frequent_words = [w for w, c in word_counts.items() if len(w) > min_length and c > min_frequency][:max_words]
-            if frequent_words:
-                avoid_elements += "\n🚫 Too frequent: " + ", ".join(frequent_words)
-            
-            # Simple detection of common phrases
-            text = " ".join(all_sentences[-20:]).lower()
-            common_phrases = CONFIG.get('repetition_detection', {}).get('common_phrases', [
-                "dust motes", "motes of dust", "shaft of light", "beam of light",
-                "sunlight", "moonlight", "candlelight", "shadows", "window"
-            ])
-            for phrase in common_phrases:
-                if text.count(phrase) >= 2:
-                    repetitive_elements.add(phrase)
-        
-        if repetitive_elements:
-            avoid_elements += "\n⚠️ Avoid repeating these overused elements: " + ", ".join(repetitive_elements) + "."
 
-        # Generate random tone modifier and focus sense for variety
-        tone_modifier = random.choice([
-            "golden dusk", "linen-soft twilight", "foggy glass morning",
-            "moonlight across old floorboards", "drifting cabin glow",
-            "warm attic haze", "still lake reflection"
-        ])
+        # Get tone modifiers from config
+        tone_modifiers = CONFIG.get('story', {}).get('chapter_elements', {}).get('tone_modifiers', {
+            "exposition": [
+                "gentle morning light", "soft dawn mist", "awakening stillness",
+                "first breath of day", "opening silence", "weightless beginning"
+            ],
+            "climax": [
+                "golden dusk", "hidden resonance", "deeper awareness",
+                "saturated moment", "present attention", "full-bodied presence"
+            ],
+            "resolution": [
+                "settling dust", "quieting rhythm", "fading warmth",
+                "dissolving light", "gentle release", "drifting toward silence"
+            ]
+        })
         
-        focus_sense = random.choice([
-            "touch", "sound", "warmth", "motion", "air", "texture"
-        ])
+        # Use the tone modifiers for the current chapter, with fallback
+        chapter_tone_modifiers = tone_modifiers.get(current_chapter, ["soft ambient glow"])
+        tone_modifier = random.choice(chapter_tone_modifiers)
+        
+        # Get sensory focus elements from config
+        sensory_focus = CONFIG.get('story', {}).get('chapter_elements', {}).get('sensory_focus', {
+            "exposition": ["touch", "light", "scent", "texture", "air", "space"],
+            "climax": ["sound", "warmth", "motion", "weight", "color", "presence"],
+            "resolution": ["breath", "rhythm", "stillness", "shadow", "silence", "sleep"]
+        })
+        
+        # Use the sensory focus for the current chapter, with fallback
+        chapter_sensory_focus = sensory_focus.get(current_chapter, ["presence"])
+        focus_sense = random.choice(chapter_sensory_focus)
+        
+        # Get current chapter description from outline
+        chapter_description = outline['chapters'][current_chapter]
+        
+        # Get approaching_transition flag
+        approaching_transition = False
+        if current_chapter == "exposition" and chapter_duration >= chapter_durations["exposition"] * 0.8:
+            approaching_transition = True
+        elif current_chapter == "climax" and chapter_duration >= chapter_durations["climax"] * 0.8:
+            approaching_transition = True
+        
+        # Get transition guidance if approaching a chapter boundary
+        transition_guidance = ""
+        if approaching_transition:
+            next_chapter = "climax" if current_chapter == "exposition" else "resolution"
+            next_chapter_desc = outline['chapters'][next_chapter]
+            transition_guidance = f"\n\nYou are approaching the transition to the {next_chapter} chapter. Begin subtly shifting toward: {next_chapter_desc[:100]}..."
         
         # Get sentence length parameters from config
         sentence_length_target_range = CONFIG.get('story', {}).get('sentence_length_target_range', [8, 14])
@@ -309,9 +392,12 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
             last_summary=last_summary,
             tone_modifier=tone_modifier,
             focus_sense=focus_sense,
-            sentence_length_target_range=sentence_length_target_range
+            sentence_length_target_range=sentence_length_target_range,
+            characters=characters_info,
+            current_chapter=current_chapter,
+            chapter_description=chapter_description,
+            transition_guidance=transition_guidance
         )
-
 
         chunk = model.respond(prompt, response_format=StoryChunk)
         if not isinstance(chunk.parsed, dict) or "sentences" not in chunk.parsed:
@@ -322,21 +408,19 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
         if not sentences:
             continue
             
-        # Filter out sentences that are too similar to recent ones
-        if len(all_sentences) > 10:
-            max_prefix = CONFIG.get('repetition_detection', {}).get('sentence_deduplication', {}).get('max_prefix', 5)
-            min_keep_ratio = CONFIG.get('repetition_detection', {}).get('sentence_deduplication', {}).get('min_keep_ratio', 0.7)
-            
-            filtered_sentences = deduplicate_sentences(sentences, all_sentences[-20:], max_prefix=max_prefix)
-            # Only use filtered sentences if we didn't lose too many
-            if len(filtered_sentences) >= len(sentences) * min_keep_ratio:
-                sentences = filtered_sentences
+        # Sentence deduplication logic removed as requested
 
         # Calculate duration based on word count
         word_count = sum(len(sentence.split()) for sentence in sentences)
         chunk_duration = (word_count * word_duration_seconds) / 60  # Convert to minutes
-        chunks.append({"sentences": sentences, "short_summary": chunk.parsed.get("short_summary", "")})
+        chunks.append({
+            "sentences": sentences, 
+            "short_summary": chunk.parsed.get("short_summary", ""),
+            "chapter": current_chapter
+        })
+        
         total_duration += chunk_duration
+        chapter_duration += chunk_duration
         all_sentences.extend(sentences)
         cumulative_summary += " " + chunk.parsed.get("short_summary", "")
 
@@ -344,25 +428,29 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
             "topic_title": topic.title,
             "topic_summary": topic.summary,
             "theme": theme,
-            "model": model_name,  # Include model information
+            "model": model_name,
+            "outline": outline,
             "total_duration": total_duration,
             "sentences": all_sentences,
             "chunks": chunks,
             "cumulative_summary": cumulative_summary,
             "compressed_context": compressed_context,
+            "current_chapter": current_chapter,
+            "chapter_duration": chapter_duration,
             "completion_percentage": total_duration / target_duration * 100,
             "phase": phase
         }, is_intermediate=True, existing_path=story_path)
 
         print(f"🧩 {sentences[0]}")
-        print(f"⏳ {total_duration:.1f}/{target_duration} min")
+        print(f"⏳ {total_duration:.1f}/{target_duration} min | {current_chapter.capitalize()}: {chapter_duration:.1f}/{chapter_durations[current_chapter]:.1f} min")
 
     # Final write
     final = {
         "topic_title": topic.title,
         "topic_summary": topic.summary,
         "theme": theme,
-        "model": model_name,  # Include model information
+        "model": model_name,
+        "outline": outline,
         "total_duration": total_duration,
         "sentence_count": len(all_sentences),
         "sentences": all_sentences,
@@ -407,6 +495,19 @@ def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
         'sentence_count': len(story_data['sentences']),
         'sentences': story_data['sentences']
     }
+    
+    # Include outline if it exists
+    if 'outline' in story_data:
+        yaml_data['outline'] = story_data['outline']
+    
+    # Include chapter weights if they exist
+    if 'chapter_weights' in story_data:
+        yaml_data['chapter_weights'] = story_data['chapter_weights']
+    
+    # Include current chapter information if it exists
+    if 'current_chapter' in story_data:
+        yaml_data['current_chapter'] = story_data['current_chapter']
+        yaml_data['chapter_duration'] = story_data.get('chapter_duration', 0)
 
     # Add debug info for all saves
     if 'chunks' in story_data or ('cumulative_summary' in story_data and 'compressed_context' in story_data):

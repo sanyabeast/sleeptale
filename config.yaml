@@ -36,6 +36,64 @@ story:
   # Number of sentences to generate per chunk
   sentences_per_chunk: 30
   sentence_length_target_range: [64, 96]  # 🚨 NEW: typical word count range
+  # Chapter weights (proportions of the story dedicated to each chapter)
+  chapter_weights:
+    exposition: 0.35
+    climax: 0.4
+    resolution: 0.25
+
+  chapter_elements:
+    tone_modifiers:
+      exposition:
+        - "gentle morning light"
+        - "soft dawn mist"
+        - "awakening stillness"
+        - "first breath of day"
+        - "opening silence"
+        - "weightless beginning"
+        - "the hush before motion"
+        - "the cool breath of still air"
+      climax:
+        - "golden dusk"
+        - "hidden resonance"
+        - "deeper awareness"
+        - "saturated moment"
+        - "present attention"
+        - "full-bodied presence"
+        - "crystal suspension"
+        - "rippling moment"
+      resolution:
+        - "settling dust"
+        - "quieting rhythm"
+        - "fading warmth"
+        - "dissolving light"
+        - "gentle release"
+        - "drifting toward silence"
+        - "dim afterglow"
+        - "the sound of forgetting"
+    sensory_focus:
+      exposition:
+        - "touch"
+        - "light"
+        - "scent"
+        - "texture"
+        - "air"
+        - "open stillness"
+      climax:
+        - "sound"
+        - "warmth"
+        - "swaying branches"
+        - "weight"
+        - "color"
+        - "presence"
+      resolution:
+        - "breath"
+        - "rhythm"
+        - "stillness"
+        - "shadow"
+        - "silence"
+        - "sleep"
+
 
 # Voice Generation Configuration
 voice:
@@ -113,7 +171,7 @@ prompts:
     - Quiet indoor scenes (attics, greenhouses, candlelit rooms)
     - Gentle weather (fog, snow, dusk light, breeze)
     - Simple routines (sorting, folding, watering, sweeping)
-    - Passive observers (a cat, a lantern keeper, a gardener)
+    - Passive presences (a cat, a lantern keeper, a drifting boat)
     - Rarely: cosmic isolation or slow drifting in space (e.g. "Orbital Window")
 
     ❌ Avoid:
@@ -141,16 +199,16 @@ prompts:
     - Each topic must include a poetic **title** and a 1-sentence **summary**.
 
     💡 Good elements to use:
-    - A quiet person or animal simply existing (e.g., feeding birds, watching clouds)
-    - Nature moving slowly (e.g., snowfall, moss growing, fog shifting)
+    - A quiet presence or character existing calmly (e.g., feeding birds, walking slowly)
+    - Nature in slow motion (e.g., snowfall, moss growing, fog drifting)
     - Small cozy spaces (e.g., attic, dock, greenhouse)
     - Soft tools or objects (e.g., a broom, notebook, candle)
-    - Occasional dreamlike touches (e.g., drifting garden in orbit, forgotten telescope)
+    - Occasionally: dreamlike touches (e.g., a floating garden, a library on the moon)
 
     ❌ Avoid:
     - Drama, dialogue, tension, or plot twists
-    - Vague or overly abstract titles like "Temporal Fragments" or "Resonant Thresholds"
-    - Anything hard to imagine or emotionally heavy
+    - Abstract or vague titles like "Temporal Fragments"
+    - Anything hard to visualize or emotionally intense
 
     🔒 Recently used topics:
     {recent_stories}
@@ -192,6 +250,47 @@ prompts:
 
     Respond with plain text only — no quotes or bullet points.
 
+  # Story outline prompt
+  outline: |
+    You are a poetic outline generator for calm, ambient bedtime stories.  
+    Your task is to define the **structure** of a future gentle, plotless narrative designed to lull the listener to sleep.
+
+    Theme: {theme}  
+    Topic: {topic}
+
+    🧩 Your output must include:
+    - A list of **main characters or presences** in the story (usually 1–3).
+      Each character must include:
+        - `name`: a poetic or symbolic label (e.g., "The Sleeper", "The Gardener", "The Lantern")
+        - `role`: a short phrase explaining what they represent or do in the world (e.g., "Silent observer", "Caretaker of forgotten spaces")
+
+    - A poetic breakdown of the story into three **chapters**:
+        - `exposition`: the dreamy introduction to the setting or sensation
+        - `climax`: a gentle moment of intensity, change, or emotional texture (not dramatic)
+        - `resolution`: the slow winding down, fading out, or return to stillness
+
+    ✨ Guidelines:
+    - The story must remain peaceful, ambient, and timeless.
+    - The chapters should focus on **atmosphere, sensory imagery, and repetition** — not plot.
+    - Use dreamy, intuitive phrasing. Imagine describing a memory in slow motion.
+
+    ❌ Avoid:
+    - Dialogue, conflict, urgency, or anything intense
+    - Conventional plot structure or character arcs
+    - Anything loud, scary, or adventurous
+
+    📦 Respond strictly in this JSON format:
+
+    {{
+      "characters": [
+        {{ "name": "...", "role": "..." }}
+      ],
+      "chapters": {{
+        "exposition": "...",
+        "climax": "...",
+        "resolution": "..."
+      }}
+    }}
 
   # Story generation prompt
   story: |
@@ -204,10 +303,13 @@ prompts:
     - Maintain soft pacing, ambient imagery, and a gentle rhythm.
     - Let the story feel timeless — with no plot, urgency, or conflict.
 
-    ✅ You may include **a minimal character** (e.g., she, he, they, the keeper, the painter),
-    but they must never speak or act dramatically.
-    They may watch, fold, walk, feed, tidy, drift, wait, or observe.
-    Never use dialogue, plot twists, or emotional tension.
+    📖 Current Chapter: **{current_chapter}**
+    {chapter_description}
+    {transition_guidance}
+
+    👥 Characters: {characters}
+    - These are the core presences from the outline. Let them act subtly.
+    - They may fold, sweep, tend, drift, or observe — but never speak or act dramatically.
 
     🔁 Reinforce imagery from earlier chunks to maintain cohesion, but vary your descriptions.
     ⚠️ Avoid overused phrases like "dust motes", "candlelight", or "shafts of light" more than once.
@@ -226,17 +328,14 @@ prompts:
     - Avoid semicolons, run-ons, or multi-clause sentences.
     - Keep the language simple, concrete, and quietly descriptive.
 
-    🌿 Optional sensory focus: *{focus_sense}*  
-    - If present, gently emphasize that sensory mode (e.g., texture, sound, light) in this section.
+    🌿 Chapter sensory focus: *{focus_sense}*  
+    🎨 Ambient tone hint: *{tone_modifier}*
 
-    🎨 Ambient tone hint: *{tone_modifier}*  
-    - Use this as a subtle emotional backdrop (e.g., "foggy glass morning", "quiet lanternlight").
-
-    📚 Story Essence: {story_essence}
-    🎨 Theme: {theme}
+    📚 Story Essence: {story_essence}  
+    🎨 Theme: {theme}  
     📖 Topic: {topic}
 
-    Recent context: "{recent_context}"
+    Recent context: "{recent_context}"  
     Last section: "{last_summary}"
 
     📝 At the end, include a **short summary (1–2 gentle sentences)** of this section.
@@ -246,7 +345,6 @@ prompts:
       "sentences": ["..."],
       "short_summary": "..."
     }}
-
 
 # Video Configuration
 video:
@@ -300,32 +398,6 @@ directories:
   # Directory for video files (relative to output directory)
   video: "video"
 
-# Repetition Detection Configuration
-repetition_detection:
-  # Common phrases to detect and avoid repeating
-  common_phrases: [
-    "dust motes", "motes of dust", "shaft of light", "beam of light", 
-    "sunlight", "moonlight", "candlelight", "shadows", "window"
-  ]
-  # N-gram analysis parameters
-  ngram:
-    # Size of n-grams to detect
-    size: 4
-    # Minimum number of repeats to flag
-    min_repeats: 2
-  # Word frequency parameters
-  word_frequency:
-    # Minimum word length to consider
-    min_length: 3
-    # Minimum frequency to flag
-    min_frequency: 3
-    # Maximum number of frequent words to report
-    max_words: 5
-  # Sentence deduplication parameters
-  sentence_deduplication:
-    # Maximum prefix length to compare
-    max_prefix: 5
-    # Minimum ratio of sentences to keep after filtering
-    min_keep_ratio: 0.7
+# Configuration sections for repetition detection have been removed as requested
 
 
