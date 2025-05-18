@@ -398,6 +398,14 @@ directories:
   # Directory for video files (relative to output directory)
   video: "video"
 
-# Configuration sections for repetition detection have been removed as requested
-
+# Simplified repetition detection configuration
+repetition_detection:
+  # Size of n-grams (phrases) to detect
+  ngram_size: 3
+  # Minimum number of repetitions to flag
+  min_repeats: 3
+  # Maximum number of repetitive phrases to report in the prompt
+  max_phrases_to_report: 20
+  # Number of recent sentences to analyze for repetition
+  context_window_size: 40
 

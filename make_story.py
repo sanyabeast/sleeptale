@@ -221,7 +221,28 @@ def compress_summary(model, text: str) -> str:
     return response_text
 
 
-# Removed repetition detection functions as they were deemed overengineering
+def detect_repetitive_phrases(text: str, ngram_size=4, min_repeats=2):
+    """Simplified function to detect repeating phrases in text.
+    
+    Args:
+        text: Text to analyze for repetition
+        ngram_size: Size of phrases to detect (4 = four word phrases)
+        min_repeats: Minimum number of repetitions to consider as problematic
+        
+    Returns:
+        List of repeated phrases
+    """
+    # Split text into words and create n-grams
+    words = text.lower().split()
+    ngrams = [" ".join(words[i:i+ngram_size]) for i in range(len(words)-ngram_size+1)]
+    
+    # Count occurrences of each n-gram
+    ngram_counts = {}
+    for ngram in ngrams:
+        ngram_counts[ngram] = ngram_counts.get(ngram, 0) + 1
+    
+    # Return n-grams that appear too frequently
+    return [ngram for ngram, count in ngram_counts.items() if count >= min_repeats]
 
 
 def generate_story(model, topic, theme=None, target_duration=None, model_name=None):
@@ -287,6 +308,9 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
     current_chapter = "exposition"
     chapter_duration = 0
 
+    # Track repetitive phrases for debugging
+    detected_repetitions = []
+    
     # Create initial save path
     story_path = save_story_yaml({
         'topic_title': topic.title,
@@ -296,7 +320,8 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
         'outline': outline,
         'chapter_weights': chapter_weights,
         'total_duration': 0,
-        'sentences': []
+        'sentences': [],
+        'detected_repetitions': detected_repetitions
     }, is_intermediate=True)
 
     while total_duration < target_duration:
@@ -325,8 +350,32 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
         recent_context = " ".join(all_sentences[-5:]) or topic.summary
         last_summary = chunks[-1]['short_summary'] if chunks else topic.summary
         
-        # Repetition detection logic removed as requested
+        # Simplified repetition detection
         avoid_elements = ""
+        if len(all_sentences) > 10:
+            # Get repetition detection parameters from config
+            ngram_size = CONFIG.get('repetition_detection', {}).get('ngram_size', 4)
+            min_repeats = CONFIG.get('repetition_detection', {}).get('min_repeats', 2)
+            max_phrases = CONFIG.get('repetition_detection', {}).get('max_phrases_to_report', 5)
+            context_window_size = CONFIG.get('repetition_detection', {}).get('context_window_size', 20)
+            
+            # Check for repeating phrases using n-grams
+            recent_text = " ".join(all_sentences[-context_window_size:])  # Use configurable window size
+            repeated_phrases = detect_repetitive_phrases(recent_text, ngram_size=ngram_size, min_repeats=min_repeats)
+            
+            # Store detected repetitions for debugging
+            if repeated_phrases:
+                # Create an entry with timestamp, chapter, and repeated phrases
+                repetition_entry = {
+                    'chunk_index': len(chunks),
+                    'chapter': current_chapter,
+                    'timestamp': datetime.now().strftime("%H:%M:%S"),
+                    'phrases': repeated_phrases
+                }
+                detected_repetitions.append(repetition_entry)
+                
+                # Add warning about repetitive phrases if found
+                avoid_elements += "\n⚠️ Avoid repeating these phrases: " + ", ".join(repeated_phrases[:max_phrases])
 
         # Get tone modifiers from config
         tone_modifiers = CONFIG.get('story', {}).get('chapter_elements', {}).get('tone_modifiers', {
@@ -438,7 +487,8 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
             "current_chapter": current_chapter,
             "chapter_duration": chapter_duration,
             "completion_percentage": total_duration / target_duration * 100,
-            "phase": phase
+            "phase": phase,
+            "detected_repetitions": detected_repetitions
         }, is_intermediate=True, existing_path=story_path)
 
         print(f"🧩 {sentences[0]}")
@@ -457,7 +507,8 @@ def generate_story(model, topic, theme=None, target_duration=None, model_name=No
         "cumulative_summary": cumulative_summary,
         "compressed_context": compressed_context,
         "completion_percentage": 100,
-        "phase": "complete"
+        "phase": "complete",
+        "detected_repetitions": detected_repetitions
     }
 
     save_story_yaml(final, is_intermediate=False, existing_path=story_path)
@@ -517,6 +568,10 @@ def save_story_yaml(story_data, is_intermediate=False, existing_path=None):
             'cumulative_summary': story_data.get('cumulative_summary', ''),
             'compressed_context': story_data.get('compressed_context', '')
         }
+        
+        # Add repetition detection data if available
+        if 'detected_repetitions' in story_data and story_data['detected_repetitions']:
+            yaml_data['debug']['repetition_detection'] = story_data['detected_repetitions']
 
     # Save to YAML
     with open(file_path, 'w', encoding='utf-8') as f:
