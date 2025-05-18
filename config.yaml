@@ -401,7 +401,7 @@ directories:
 # Simplified repetition detection configuration
 repetition_detection:
   # Size of n-grams (phrases) to detect
-  ngram_size: 2
+  ngram_size: 3
   # Minimum number of repetitions to flag
   min_repeats: 2
   # Maximum number of repetitive phrases to report in the prompt
